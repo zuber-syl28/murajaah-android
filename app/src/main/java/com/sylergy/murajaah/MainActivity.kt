@@ -54,6 +54,8 @@ import com.sylergy.murajaah.quran.NarrationData
 import com.sylergy.murajaah.quran.QuranData
 import com.sylergy.murajaah.scheduler.DateUtils
 import com.sylergy.murajaah.scheduler.MurajaahScheduler
+import com.sylergy.murajaah.session.SessionViewModel
+import com.sylergy.murajaah.session.ui.SessionScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -62,15 +64,33 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MurajaahTheme {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    containerColor = Color(0xFFF8F7F2) // Warm Cream Mushaf Parchment
-                ) { innerPadding ->
-                    HomeScreen(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
+                val context = LocalContext.current
+                val db = remember { MurajaahDatabase.getInstance(context) }
+                val syncRepo = remember { SyncRepository(NetworkClient.create(), db) }
+                val sessionViewModel = remember { SessionViewModel(db, syncRepo) }
+                var isSessionActive by remember { mutableStateOf(false) }
+
+                if (isSessionActive) {
+                    SessionScreen(
+                        viewModel = sessionViewModel,
+                        onFinishSession = { isSessionActive = false },
+                        modifier = Modifier.fillMaxSize()
                     )
+                } else {
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
+                        containerColor = Color(0xFFF8F7F2) // Warm Cream Mushaf Parchment
+                    ) { innerPadding ->
+                        HomeScreen(
+                            onStartSession = {
+                                sessionViewModel.startSession()
+                                isSessionActive = true
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                        )
+                    }
                 }
             }
         }
@@ -78,7 +98,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun HomeScreen(modifier: Modifier = Modifier) {
+fun HomeScreen(
+    onStartSession: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val db = MurajaahDatabase.getInstance(context)
@@ -124,9 +147,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
         // Primary Wird Launch CTA
         item {
             Button(
-                onClick = {
-                    Toast.makeText(context, "$dueCount cards due for revision today", Toast.LENGTH_SHORT).show()
-                },
+                onClick = onStartSession,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(58.dp),
