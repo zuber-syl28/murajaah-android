@@ -15,6 +15,12 @@ interface GradeOutboxDao {
     @Query("SELECT * FROM grade_outbox WHERE synced = 0 ORDER BY recordedAt ASC, createdAt ASC")
     suspend fun getPendingGrades(): List<GradeOutboxEntity>
 
+    @Query("SELECT * FROM grade_outbox ORDER BY recordedAt DESC, createdAt DESC")
+    fun observeAllGrades(): Flow<List<GradeOutboxEntity>>
+
+    @Query("SELECT * FROM grade_outbox ORDER BY recordedAt DESC, createdAt DESC")
+    suspend fun getAllGrades(): List<GradeOutboxEntity>
+
     @Query("SELECT COUNT(*) FROM grade_outbox WHERE synced = 0")
     fun observePendingCount(): Flow<Int>
 

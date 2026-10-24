@@ -50,6 +50,7 @@ dependencies {
     implementation(project(":feature:session"))
     implementation(project(":feature:auth"))
     implementation(project(":feature:onboarding"))
+    implementation(project(":feature:progress"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

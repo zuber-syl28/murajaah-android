@@ -24,6 +24,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -50,6 +53,8 @@ import com.sylergy.murajaah.auth.storage.AuthPreferences
 import com.sylergy.murajaah.auth.ui.AuthScreen
 import com.sylergy.murajaah.onboarding.OnboardingViewModel
 import com.sylergy.murajaah.onboarding.ui.OnboardingScreen
+import com.sylergy.murajaah.progress.ProgressViewModel
+import com.sylergy.murajaah.progress.ui.ProgressScreen
 import com.sylergy.murajaah.database.MurajaahDatabase
 import com.sylergy.murajaah.database.entity.CardEntity
 import com.sylergy.murajaah.database.entity.MemorizedRangeEntity
@@ -67,6 +72,11 @@ import com.sylergy.murajaah.session.SessionViewModel
 import com.sylergy.murajaah.session.ui.SessionScreen
 import kotlinx.coroutines.launch
 
+enum class MainTab {
+    REVISION,
+    PROGRESS
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,9 +90,11 @@ class MainActivity : ComponentActivity() {
                 val onboardingViewModel = remember { OnboardingViewModel(db, authPreferences) }
                 val syncRepo = remember { SyncRepository(NetworkClient.create(), db) }
                 val sessionViewModel = remember { SessionViewModel(db, syncRepo) }
+                val progressViewModel = remember { ProgressViewModel(db) }
 
                 val authState by authViewModel.authState.collectAsState()
                 var isSessionActive by remember { mutableStateOf(false) }
+                var currentTab by remember { mutableStateOf(MainTab.REVISION) }
 
                 when (val state = authState) {
                     AuthState.Loading -> {
@@ -121,19 +133,81 @@ class MainActivity : ComponentActivity() {
                         } else {
                             Scaffold(
                                 modifier = Modifier.fillMaxSize(),
-                                containerColor = Color(0xFFF8F7F2) // Warm Cream Mushaf Parchment
+                                containerColor = Color(0xFFF8F7F2), // Warm Cream Mushaf Parchment
+                                bottomBar = {
+                                    NavigationBar(
+                                        containerColor = Color.White,
+                                        tonalElevation = 3.dp
+                                    ) {
+                                        NavigationBarItem(
+                                            selected = currentTab == MainTab.REVISION,
+                                            onClick = { currentTab = MainTab.REVISION },
+                                            icon = { Text("📖", fontSize = 18.sp) },
+                                            label = {
+                                                Text(
+                                                    "Revision · وِرد",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (currentTab == MainTab.REVISION) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            colors = NavigationBarItemDefaults.colors(
+                                                selectedIconColor = Color(0xFF2F4A3D),
+                                                selectedTextColor = Color(0xFF2F4A3D),
+                                                indicatorColor = Color(0xFFE8F0EC)
+                                            )
+                                        )
+                                        NavigationBarItem(
+                                            selected = currentTab == MainTab.PROGRESS,
+                                            onClick = { currentTab = MainTab.PROGRESS },
+                                            icon = { Text("📊", fontSize = 18.sp) },
+                                            label = {
+                                                Text(
+                                                    "Progress · إتقان",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (currentTab == MainTab.PROGRESS) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            colors = NavigationBarItemDefaults.colors(
+                                                selectedIconColor = Color(0xFF2F4A3D),
+                                                selectedTextColor = Color(0xFF2F4A3D),
+                                                indicatorColor = Color(0xFFE8F0EC)
+                                            )
+                                        )
+                                    }
+                                }
                             ) { innerPadding ->
-                                HomeScreen(
-                                    session = session,
-                                    onSignOut = { authViewModel.signOut() },
-                                    onStartSession = {
-                                        sessionViewModel.startSession()
-                                        isSessionActive = true
-                                    },
+                                Column(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .padding(innerPadding)
-                                )
+                                ) {
+                                    UserProfileHeader(
+                                        session = session,
+                                        onSignOut = { authViewModel.signOut() }
+                                    )
+
+                                    when (currentTab) {
+                                        MainTab.REVISION -> {
+                                            HomeScreen(
+                                                onStartSession = {
+                                                    sessionViewModel.startSession()
+                                                    isSessionActive = true
+                                                },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                        MainTab.PROGRESS -> {
+                                            ProgressScreen(
+                                                viewModel = progressViewModel,
+                                                onNavigateToCard = {
+                                                    sessionViewModel.startSession()
+                                                    isSessionActive = true
+                                                },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -144,9 +218,48 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun HomeScreen(
+fun UserProfileHeader(
     session: UserSession,
     onSignOut: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .background(Color.White, RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "Salam, ${session.name}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF2F4A3D)
+            )
+            Box(
+                modifier = Modifier
+                    .background(if (session.isGuest) Color(0xFFE0F2FE) else Color(0xFFDCFCE7), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = if (session.isGuest) "Guest Mode" else "Cloud Sync",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (session.isGuest) Color(0xFF0369A1) else Color(0xFF15803D)
+                )
+            }
+        }
+        TextButton(onClick = onSignOut) {
+            Text("Sign Out", fontSize = 12.sp, color = Color(0xFF888888))
+        }
+    }
+}
+
+@Composable
+fun HomeScreen(
     onStartSession: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -164,45 +277,10 @@ fun HomeScreen(
 
     LazyColumn(
         modifier = modifier
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // User Profile & Mode Header
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Salam, ${session.name}",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF2F4A3D)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .background(if (session.isGuest) Color(0xFFE0F2FE) else Color(0xFFDCFCE7), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = if (session.isGuest) "Guest Mode" else "Cloud Sync",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (session.isGuest) Color(0xFF0369A1) else Color(0xFF15803D)
-                        )
-                    }
-                }
-                TextButton(onClick = onSignOut) {
-                    Text("Sign Out", fontSize = 12.sp, color = Color(0xFF888888))
-                }
-            }
-        }
 
         item {
             Spacer(modifier = Modifier.height(8.dp))
