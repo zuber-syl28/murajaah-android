@@ -29,7 +29,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +44,8 @@ import androidx.compose.ui.unit.sp
 import com.sylergy.murajaah.database.MurajaahDatabase
 import com.sylergy.murajaah.database.entity.CardEntity
 import com.sylergy.murajaah.database.entity.MemorizedRangeEntity
+import com.sylergy.murajaah.mushaf.MushafCanvas
+import com.sylergy.murajaah.mushaf.MushafRepository
 import com.sylergy.murajaah.network.api.NetworkClient
 import com.sylergy.murajaah.network.sync.SyncRepository
 import com.sylergy.murajaah.network.sync.SyncWorker
@@ -84,6 +89,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
     val dueCount by db.cardDao().observeDueCount(today).collectAsState(initial = 0)
     val rangeCount by db.memorizedRangeDao().observeRangeCount().collectAsState(initial = 0)
     val pendingOutboxCount by db.gradeOutboxDao().observePendingCount().collectAsState(initial = 0)
+    var slippedAyahs: Set<Int> by remember { mutableStateOf(emptySet()) }
 
     LazyColumn(
         modifier = modifier
@@ -144,6 +150,27 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                     )
                 }
             }
+        }
+
+        // Live Interactive Mushaf Canvas (Issue #3)
+        item {
+            MushafCanvas(
+                surahNumber = 67,
+                fromAyah = 1,
+                toAyah = 10,
+                ayahs = MushafRepository.getPassageText(67, 1, 10),
+                narration = Narration.HAFS,
+                slippedAyahs = slippedAyahs,
+                onAyahToggled = { ayah ->
+                    val next = slippedAyahs.toMutableSet()
+                    if (next.contains(ayah)) {
+                        next.remove(ayah)
+                    } else {
+                        next.add(ayah)
+                    }
+                    slippedAyahs = next
+                }
+            )
         }
 
         // Offline Room Database Status Card (Issue #6)

@@ -46,6 +46,7 @@ dependencies {
     implementation(project(":core:scheduler"))
     implementation(project(":core:database"))
     implementation(project(":core:network"))
+    implementation(project(":core:mushaf"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
