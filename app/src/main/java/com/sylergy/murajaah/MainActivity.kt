@@ -25,6 +25,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -33,6 +34,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -82,6 +85,8 @@ import com.sylergy.murajaah.reviewing.ui.ReviewingScreen
 import com.sylergy.murajaah.voice.VoiceSessionViewModel
 import com.sylergy.murajaah.voice.model.VoiceStatus
 import com.sylergy.murajaah.voice.ui.VoiceBar
+import com.sylergy.murajaah.reminders.RemindersViewModel
+import com.sylergy.murajaah.reminders.ui.ReminderSettingsScreen
 import com.sylergy.murajaah.scheduler.DateUtils
 import com.sylergy.murajaah.scheduler.MurajaahScheduler
 import com.sylergy.murajaah.scheduler.ReviewerRole
@@ -118,12 +123,14 @@ class MainActivity : ComponentActivity() {
                 val friendsViewModel = remember { FriendsViewModel(friendsRepo) }
                 val reviewingViewModel = remember { ReviewingViewModel() }
                 val voiceViewModel = remember { VoiceSessionViewModel() }
+                val remindersViewModel = remember { RemindersViewModel(application) }
 
                 val authState by authViewModel.authState.collectAsState()
                 val voiceStatus by voiceViewModel.status.collectAsState()
                 val deepLinkToken by pendingDeepLink.collectAsState()
                 var isSessionActive by remember { mutableStateOf(false) }
                 var isViewingAchievements by remember { mutableStateOf(false) }
+                var isViewingReminders by remember { mutableStateOf(false) }
                 var selectedFriendId by remember { mutableStateOf<String?>(null) }
                 var reviewingCompanion by remember { mutableStateOf<FriendEntity?>(null) }
                 var currentTab by remember { mutableStateOf(MainTab.REVISION) }
@@ -237,6 +244,12 @@ class MainActivity : ComponentActivity() {
                                             onBack = { isViewingAchievements = false },
                                             modifier = Modifier.fillMaxSize()
                                         )
+                                    } else if (isViewingReminders) {
+                                        ReminderSettingsScreen(
+                                            viewModel = remindersViewModel,
+                                            onBack = { isViewingReminders = false },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
                                     } else {
                                         Scaffold(
                                             modifier = Modifier.fillMaxSize(),
@@ -307,7 +320,8 @@ class MainActivity : ComponentActivity() {
                                             ) {
                                                 UserProfileHeader(
                                                     session = session,
-                                                    onSignOut = { authViewModel.signOut() }
+                                                    onSignOut = { authViewModel.signOut() },
+                                                    onOpenReminders = { isViewingReminders = true }
                                                 )
 
                                                 when (currentTab) {
@@ -404,6 +418,7 @@ class MainActivity : ComponentActivity() {
 fun UserProfileHeader(
     session: UserSession,
     onSignOut: () -> Unit,
+    onOpenReminders: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -435,8 +450,17 @@ fun UserProfileHeader(
                 )
             }
         }
-        TextButton(onClick = onSignOut) {
-            Text("Sign Out", fontSize = 12.sp, color = Color(0xFF888888))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                onClick = onOpenReminders,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Text("🔔", fontSize = 16.sp)
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            TextButton(onClick = onSignOut) {
+                Text("Sign Out", fontSize = 12.sp, color = Color(0xFF888888))
+            }
         }
     }
 }

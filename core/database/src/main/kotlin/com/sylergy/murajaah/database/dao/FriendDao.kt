@@ -13,6 +13,9 @@ interface FriendDao {
     @Query("SELECT * FROM friends ORDER BY youReviewDueToday DESC, name ASC")
     fun observeAllFriends(): Flow<List<FriendEntity>>
 
+    @Query("SELECT * FROM friends ORDER BY youReviewDueToday DESC, name ASC")
+    suspend fun getAllFriends(): List<FriendEntity>
+
     @Query("SELECT * FROM friends WHERE userId = :userId")
     suspend fun getFriendById(userId: String): FriendEntity?
 
