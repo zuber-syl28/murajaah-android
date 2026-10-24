@@ -44,6 +44,8 @@ dependencies {
     implementation(project(":core:fsrs"))
     implementation(project(":core:quran"))
     implementation(project(":core:scheduler"))
+    implementation(project(":core:database"))
+    implementation(project(":core:network"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

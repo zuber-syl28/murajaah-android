@@ -1,6 +1,7 @@
 package com.sylergy.murajaah
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,32 +15,41 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.sylergy.murajaah.fsrs.MurajaahFsrs
-import com.sylergy.murajaah.fsrs.Rating
+import com.sylergy.murajaah.database.MurajaahDatabase
+import com.sylergy.murajaah.database.entity.CardEntity
+import com.sylergy.murajaah.database.entity.MemorizedRangeEntity
+import com.sylergy.murajaah.network.api.NetworkClient
+import com.sylergy.murajaah.network.sync.SyncRepository
+import com.sylergy.murajaah.network.sync.SyncWorker
 import com.sylergy.murajaah.quran.Narration
 import com.sylergy.murajaah.quran.NarrationData
 import com.sylergy.murajaah.quran.QuranData
+import com.sylergy.murajaah.scheduler.DateUtils
 import com.sylergy.murajaah.scheduler.MurajaahScheduler
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,6 +74,17 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun HomeScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val db = MurajaahDatabase.getInstance(context)
+    val syncRepo = SyncRepository(NetworkClient.create(), db)
+
+    val today = DateUtils.today()
+    val cardCount by db.cardDao().observeCardCount().collectAsState(initial = 0)
+    val dueCount by db.cardDao().observeDueCount(today).collectAsState(initial = 0)
+    val rangeCount by db.memorizedRangeDao().observeRangeCount().collectAsState(initial = 0)
+    val pendingOutboxCount by db.gradeOutboxDao().observePendingCount().collectAsState(initial = 0)
+
     LazyColumn(
         modifier = modifier
             .padding(horizontal = 20.dp, vertical = 16.dp),
@@ -97,7 +118,9 @@ fun HomeScreen(modifier: Modifier = Modifier) {
         // Primary Wird Launch CTA
         item {
             Button(
-                onClick = { /* Launch session */ },
+                onClick = {
+                    Toast.makeText(context, "$dueCount cards due for revision today", Toast.LENGTH_SHORT).show()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(58.dp),
@@ -115,10 +138,154 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                         color = Color(0xFFF8F7F2)
                     )
                     Text(
-                        text = "Focus Mode · 3 Cards due today",
+                        text = "Focus Mode · $dueCount Cards due today",
                         fontSize = 11.sp,
                         color = Color(0xFFF8F7F2).copy(alpha = 0.75f)
                     )
+                }
+            }
+        }
+
+        // Offline Room Database Status Card (Issue #6)
+        item {
+            StatusCard(
+                title = "Offline Room Database",
+                badge = if (cardCount > 0) "Local Cache Active" else "Empty Cache"
+            ) {
+                InfoRow("Stored Cards", "$cardCount cards in Room")
+                InfoRow("Due for Revision", "$dueCount cards")
+                InfoRow("Memorized Ranges", "$rangeCount active ranges")
+                InfoRow("Outbox Pending Grades", "$pendingOutboxCount unsynced")
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                val mulkRange = MemorizedRangeEntity(
+                                    id = "range-67",
+                                    surah = 67,
+                                    fromAyah = 1,
+                                    toAyah = 30,
+                                    surahName = "Al-Mulk",
+                                    surahArabicName = "الملك",
+                                    ayahsCount = 30,
+                                    cardsCount = 3
+                                )
+                                val cards = listOf(
+                                    CardEntity(
+                                        id = "card-mulk-1",
+                                        surah = 67,
+                                        fromAyah = 1,
+                                        toAyah = 10,
+                                        juz = 29,
+                                        page = 562,
+                                        status = "weak",
+                                        stability = 1.0,
+                                        difficulty = 6.4,
+                                        scheduledDays = 1,
+                                        dueAt = today,
+                                        reviewCount = 1,
+                                        firstAyahText = "تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ"
+                                    ),
+                                    CardEntity(
+                                        id = "card-mulk-2",
+                                        surah = 67,
+                                        fromAyah = 11,
+                                        toAyah = 20,
+                                        juz = 29,
+                                        page = 563,
+                                        status = "review",
+                                        stability = 4.0,
+                                        difficulty = 5.2,
+                                        scheduledDays = 4,
+                                        dueAt = today,
+                                        reviewCount = 2,
+                                        firstAyahText = "فَاعْتَرَفُوا بِذَنبِهِمْ"
+                                    ),
+                                    CardEntity(
+                                        id = "card-mulk-3",
+                                        surah = 67,
+                                        fromAyah = 21,
+                                        toAyah = 30,
+                                        juz = 29,
+                                        page = 564,
+                                        status = "strong",
+                                        stability = 14.0,
+                                        difficulty = 3.5,
+                                        scheduledDays = 14,
+                                        dueAt = DateUtils.addDays(today, 6),
+                                        reviewCount = 5,
+                                        firstAyahText = "أَمَّنْ هَذَا الَّذِي يَرْزُقُكُمْ"
+                                    )
+                                )
+                                db.memorizedRangeDao().insertAll(listOf(mulkRange))
+                                db.cardDao().insertAll(cards)
+                                Toast.makeText(context, "Seeded Al-Mulk cards to Room", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Seed Hifz", fontSize = 11.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                val clientId = syncRepo.recordOfflineGrade(
+                                    cardId = "card-mulk-1",
+                                    rating = "strong",
+                                    recordedAt = today,
+                                    recallSeconds = 25,
+                                    hintsCount = 0,
+                                    surah = 67,
+                                    fromAyah = 1,
+                                    toAyah = 10
+                                )
+                                Toast.makeText(context, "Recorded grade offline: $clientId", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Grade Offline", fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        // Delta Synchronization Engine Card (Issue #7)
+        item {
+            StatusCard(
+                title = "WorkManager Delta Sync",
+                badge = if (pendingOutboxCount > 0) "Needs Sync ($pendingOutboxCount)" else "In Sync"
+            ) {
+                InfoRow("Endpoint", "https://murajaah.sylergy-ltd.workers.dev")
+                InfoRow("Sync Method", "Oldest-first replay (/grades/sync)")
+                InfoRow("Background Worker", "WorkManager (Network Connected)")
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        SyncWorker.enqueue(context)
+                        scope.launch {
+                            val res = syncRepo.syncPendingGrades()
+                            when (res) {
+                                is com.sylergy.murajaah.network.sync.SyncResult.Success -> {
+                                    Toast.makeText(context, "Sync complete! Applied: ${res.applied}, Skipped: ${res.skipped}", Toast.LENGTH_LONG).show()
+                                }
+                                is com.sylergy.murajaah.network.sync.SyncResult.Error -> {
+                                    Toast.makeText(context, "Outbox enqueued for WorkManager (${res.message})", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2F4A3D))
+                ) {
+                    Text("Trigger Delta Sync", fontSize = 13.sp, color = Color.White)
                 }
             }
         }
@@ -149,21 +316,6 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                 InfoRow("Khatmah Cycle (30 Juz)", "30 days")
                 InfoRow("Teacher-Hold Safety Brake", "30 days active")
                 InfoRow("Peer Growth Weight", "0.625 discount")
-            }
-        }
-
-        // Surah Sample Preview
-        item {
-            StatusCard(
-                title = "Active Range Overview",
-                badge = "Surah Preview"
-            ) {
-                val fatihah = QuranData.surah(1)!!
-                val baqarah = QuranData.surah(2)!!
-                val nas = QuranData.surah(114)!!
-                InfoRow("1. ${fatihah.name}", "${fatihah.arabicName} · ${fatihah.ayahCount} ayahs")
-                InfoRow("2. ${baqarah.name}", "${baqarah.arabicName} · ${baqarah.ayahCount} ayahs")
-                InfoRow("114. ${nas.name}", "${nas.arabicName} · ${nas.ayahCount} ayahs")
             }
         }
 
