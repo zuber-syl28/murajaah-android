@@ -56,6 +56,7 @@ dependencies {
     implementation(project(":feature:reviewing"))
     implementation(project(":feature:voice"))
     implementation(project(":feature:reminders"))
+    implementation(project(":feature:settings"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

@@ -25,6 +25,15 @@ interface RevisionPlanDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(plans: List<RevisionPlanEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPlan(plan: RevisionPlanEntity)
+
+    @Query("DELETE FROM revision_plans WHERE id = :planId")
+    suspend fun deletePlan(planId: String)
+
+    @Query("SELECT * FROM revision_plans WHERE id = :planId LIMIT 1")
+    suspend fun getPlanById(planId: String): RevisionPlanEntity?
+
     @Query("UPDATE revision_plans SET isActive = 0")
     suspend fun clearActivePlan()
 

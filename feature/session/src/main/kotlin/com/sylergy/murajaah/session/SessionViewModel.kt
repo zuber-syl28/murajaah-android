@@ -48,11 +48,24 @@ class SessionViewModel(
             val cardsToUse = if (!initialCards.isNullOrEmpty()) {
                 initialCards
             } else {
+                val activePlan = database.revisionPlanDao().getActivePlan()
                 val dueEntities = database.cardDao().getDueCards(DateUtils.today())
-                if (dueEntities.isNotEmpty()) {
-                    dueEntities.map { it.toDomain() }
+                val filteredDue = if (activePlan != null) {
+                    dueEntities.filter { it.surah in activePlan.surahs }
                 } else {
-                    database.cardDao().getAllCards().take(3).map { it.toDomain() }
+                    dueEntities
+                }
+
+                if (filteredDue.isNotEmpty()) {
+                    filteredDue.map { it.toDomain() }
+                } else {
+                    val allCards = database.cardDao().getAllCards()
+                    val filteredAll = if (activePlan != null) {
+                        allCards.filter { it.surah in activePlan.surahs }
+                    } else {
+                        allCards
+                    }
+                    filteredAll.take(3).map { it.toDomain() }
                 }
             }
 

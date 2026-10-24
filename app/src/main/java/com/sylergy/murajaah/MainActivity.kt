@@ -87,6 +87,10 @@ import com.sylergy.murajaah.voice.model.VoiceStatus
 import com.sylergy.murajaah.voice.ui.VoiceBar
 import com.sylergy.murajaah.reminders.RemindersViewModel
 import com.sylergy.murajaah.reminders.ui.ReminderSettingsScreen
+import com.sylergy.murajaah.settings.SettingsViewModel
+import com.sylergy.murajaah.settings.ui.PlanChips
+import com.sylergy.murajaah.settings.ui.PlanEditorScreen
+import com.sylergy.murajaah.settings.ui.SettingsScreen
 import com.sylergy.murajaah.scheduler.DateUtils
 import com.sylergy.murajaah.scheduler.MurajaahScheduler
 import com.sylergy.murajaah.scheduler.ReviewerRole
@@ -124,6 +128,7 @@ class MainActivity : ComponentActivity() {
                 val reviewingViewModel = remember { ReviewingViewModel() }
                 val voiceViewModel = remember { VoiceSessionViewModel() }
                 val remindersViewModel = remember { RemindersViewModel(application) }
+                val settingsViewModel = remember { SettingsViewModel(db, authPreferences) }
 
                 val authState by authViewModel.authState.collectAsState()
                 val voiceStatus by voiceViewModel.status.collectAsState()
@@ -131,6 +136,9 @@ class MainActivity : ComponentActivity() {
                 var isSessionActive by remember { mutableStateOf(false) }
                 var isViewingAchievements by remember { mutableStateOf(false) }
                 var isViewingReminders by remember { mutableStateOf(false) }
+                var isViewingSettings by remember { mutableStateOf(false) }
+                var isEditingPlan by remember { mutableStateOf(false) }
+                var editingPlanId by remember { mutableStateOf<String?>(null) }
                 var selectedFriendId by remember { mutableStateOf<String?>(null) }
                 var reviewingCompanion by remember { mutableStateOf<FriendEntity?>(null) }
                 var currentTab by remember { mutableStateOf(MainTab.REVISION) }
@@ -250,6 +258,25 @@ class MainActivity : ComponentActivity() {
                                             onBack = { isViewingReminders = false },
                                             modifier = Modifier.fillMaxSize()
                                         )
+                                    } else if (isEditingPlan) {
+                                        PlanEditorScreen(
+                                            viewModel = settingsViewModel,
+                                            planId = editingPlanId,
+                                            onBack = { isEditingPlan = false },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else if (isViewingSettings) {
+                                        SettingsScreen(
+                                            viewModel = settingsViewModel,
+                                            onBack = { isViewingSettings = false },
+                                            onOpenPlanEditor = { planId ->
+                                                editingPlanId = planId
+                                                isEditingPlan = true
+                                            },
+                                            onOpenReminders = { isViewingReminders = true },
+                                            onOpenSetup = { /* manage memorized */ },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
                                     } else {
                                         Scaffold(
                                             modifier = Modifier.fillMaxSize(),
@@ -321,12 +348,18 @@ class MainActivity : ComponentActivity() {
                                                 UserProfileHeader(
                                                     session = session,
                                                     onSignOut = { authViewModel.signOut() },
-                                                    onOpenReminders = { isViewingReminders = true }
+                                                    onOpenReminders = { isViewingReminders = true },
+                                                    onOpenSettings = { isViewingSettings = true }
                                                 )
 
                                                 when (currentTab) {
                                                     MainTab.REVISION -> {
                                                         HomeScreen(
+                                                            settingsViewModel = settingsViewModel,
+                                                            onOpenPlanEditor = { planId ->
+                                                                editingPlanId = planId
+                                                                isEditingPlan = true
+                                                            },
                                                             onStartSession = {
                                                                 sessionViewModel.startSession()
                                                                 isSessionActive = true
@@ -419,6 +452,7 @@ fun UserProfileHeader(
     session: UserSession,
     onSignOut: () -> Unit,
     onOpenReminders: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -457,6 +491,12 @@ fun UserProfileHeader(
             ) {
                 Text("🔔", fontSize = 16.sp)
             }
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Text("⚙️", fontSize = 16.sp)
+            }
             Spacer(modifier = Modifier.width(4.dp))
             TextButton(onClick = onSignOut) {
                 Text("Sign Out", fontSize = 12.sp, color = Color(0xFF888888))
@@ -467,6 +507,8 @@ fun UserProfileHeader(
 
 @Composable
 fun HomeScreen(
+    settingsViewModel: SettingsViewModel,
+    onOpenPlanEditor: (String?) -> Unit = {},
     onStartSession: () -> Unit,
     onNavigateToFriends: () -> Unit = {},
     onListenToCompanion: (FriendEntity) -> Unit = {},
@@ -480,7 +522,15 @@ fun HomeScreen(
 
     val today = DateUtils.today()
     val cardCount by db.cardDao().observeCardCount().collectAsState(initial = 0)
-    val dueCount by db.cardDao().observeDueCount(today).collectAsState(initial = 0)
+    val dueCards by db.cardDao().observeDueCards(today).collectAsState(initial = emptyList())
+    val activePlan by db.revisionPlanDao().observeActivePlan().collectAsState(initial = null)
+    val dueCount = remember(activePlan, dueCards) {
+        if (activePlan != null) {
+            dueCards.count { it.surah in activePlan!!.surahs }
+        } else {
+            dueCards.size
+        }
+    }
     val rangeCount by db.memorizedRangeDao().observeRangeCount().collectAsState(initial = 0)
     val pendingOutboxCount by db.gradeOutboxDao().observePendingCount().collectAsState(initial = 0)
     val companions by db.friendDao().observeAllFriends().collectAsState(initial = emptyList())
@@ -518,6 +568,15 @@ fun HomeScreen(
             )
         }
 
+        // Revision Plan Bar (PlanChips)
+        item {
+            PlanChips(
+                viewModel = settingsViewModel,
+                onOpenPlanEditor = onOpenPlanEditor,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
         // Primary Wird Launch CTA
         item {
             Button(
@@ -539,7 +598,7 @@ fun HomeScreen(
                         color = Color(0xFFF8F7F2)
                     )
                     Text(
-                        text = "Focus Mode · $dueCount Cards due today",
+                        text = if (activePlan != null) "${activePlan!!.name} · $dueCount Cards due" else "Focus Mode · $dueCount Cards due today",
                         fontSize = 11.sp,
                         color = Color(0xFFF8F7F2).copy(alpha = 0.75f)
                     )
