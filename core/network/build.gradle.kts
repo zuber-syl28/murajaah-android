@@ -29,9 +29,9 @@ dependencies {
     api(project(":core:fsrs"))
     api(project(":core:quran"))
 
-    implementation(libs.retrofit)
+    api(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx)
-    implementation(libs.okhttp)
+    api(libs.okhttp)
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.work.runtime.ktx)

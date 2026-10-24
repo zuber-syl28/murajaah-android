@@ -1,5 +1,6 @@
 package com.sylergy.murajaah
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -60,6 +61,12 @@ import com.sylergy.murajaah.achievements.ui.AchievementsScreen
 import com.sylergy.murajaah.database.MurajaahDatabase
 import com.sylergy.murajaah.database.entity.CardEntity
 import com.sylergy.murajaah.database.entity.MemorizedRangeEntity
+import com.sylergy.murajaah.friends.FriendsViewModel
+import com.sylergy.murajaah.friends.repository.FriendsRepository
+import com.sylergy.murajaah.friends.scanner.JoinUrlParser
+import com.sylergy.murajaah.friends.ui.FriendDetailScreen
+import com.sylergy.murajaah.friends.ui.FriendsScreen
+import com.sylergy.murajaah.friends.ui.JoinScreen
 import com.sylergy.murajaah.mushaf.MushafCanvas
 import com.sylergy.murajaah.mushaf.MushafRepository
 import com.sylergy.murajaah.network.api.NetworkClient
@@ -72,16 +79,21 @@ import com.sylergy.murajaah.scheduler.DateUtils
 import com.sylergy.murajaah.scheduler.MurajaahScheduler
 import com.sylergy.murajaah.session.SessionViewModel
 import com.sylergy.murajaah.session.ui.SessionScreen
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 enum class MainTab {
     REVISION,
-    PROGRESS
+    PROGRESS,
+    FRIENDS
 }
 
 class MainActivity : ComponentActivity() {
+    private val pendingDeepLink = MutableStateFlow<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleIntent(intent)
         enableEdgeToEdge()
         setContent {
             MurajaahTheme {
@@ -94,10 +106,14 @@ class MainActivity : ComponentActivity() {
                 val sessionViewModel = remember { SessionViewModel(db, syncRepo) }
                 val progressViewModel = remember { ProgressViewModel(db) }
                 val achievementsViewModel = remember { AchievementsViewModel(db) }
+                val friendsRepo = remember { FriendsRepository(db.friendDao(), NetworkClient.create()) }
+                val friendsViewModel = remember { FriendsViewModel(friendsRepo) }
 
                 val authState by authViewModel.authState.collectAsState()
+                val deepLinkToken by pendingDeepLink.collectAsState()
                 var isSessionActive by remember { mutableStateOf(false) }
                 var isViewingAchievements by remember { mutableStateOf(false) }
+                var selectedFriendId by remember { mutableStateOf<String?>(null) }
                 var currentTab by remember { mutableStateOf(MainTab.REVISION) }
 
                 when (val state = authState) {
@@ -128,6 +144,55 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
+                        } else if (deepLinkToken != null) {
+                            JoinScreen(
+                                token = deepLinkToken!!,
+                                repository = friendsRepo,
+                                onSuccess = {
+                                    pendingDeepLink.value = null
+                                    currentTab = MainTab.FRIENDS
+                                },
+                                onBack = {
+                                    pendingDeepLink.value = null
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else if (selectedFriendId != null) {
+                            val friendFlow = remember(selectedFriendId) { friendsRepo.observeFriend(selectedFriendId!!) }
+                            val friend by friendFlow.collectAsState(initial = null)
+                            if (friend != null) {
+                                FriendDetailScreen(
+                                    friend = friend!!,
+                                    onBack = { selectedFriendId = null },
+                                    onListenToThem = {
+                                        // Open examiner mode or session
+                                        sessionViewModel.startSession()
+                                        isSessionActive = true
+                                        selectedFriendId = null
+                                    },
+                                    onReciteToThem = {
+                                        sessionViewModel.startSession()
+                                        isSessionActive = true
+                                        selectedFriendId = null
+                                    },
+                                    onAskMutual = { friendsViewModel.openInviteSheet() },
+                                    onApprove = { friendsViewModel.approveRequest(it) },
+                                    onDecline = { friendsViewModel.declineRequest(it) },
+                                    onUpdateRole = { f, r -> friendsViewModel.updateRole(f, r) },
+                                    onUpdateRemind = { f, rem -> friendsViewModel.updateRemind(f, rem) },
+                                    onStopReviewing = { friendsViewModel.stopReviewing(it) },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(Color(0xFFFBF8F1)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(color = Color(0xFF2E6F40))
+                                }
+                            }
                         } else if (isSessionActive) {
                             SessionScreen(
                                 viewModel = sessionViewModel,
@@ -183,6 +248,23 @@ class MainActivity : ComponentActivity() {
                                                 indicatorColor = Color(0xFFE8F0EC)
                                             )
                                         )
+                                        NavigationBarItem(
+                                            selected = currentTab == MainTab.FRIENDS,
+                                            onClick = { currentTab = MainTab.FRIENDS },
+                                            icon = { Text("👥", fontSize = 18.sp) },
+                                            label = {
+                                                Text(
+                                                    "Friends · الرفقاء",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = if (currentTab == MainTab.FRIENDS) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            colors = NavigationBarItemDefaults.colors(
+                                                selectedIconColor = Color(0xFF2F4A3D),
+                                                selectedTextColor = Color(0xFF2F4A3D),
+                                                indicatorColor = Color(0xFFE8F0EC)
+                                            )
+                                        )
                                     }
                                 }
                             ) { innerPadding ->
@@ -203,6 +285,9 @@ class MainActivity : ComponentActivity() {
                                                     sessionViewModel.startSession()
                                                     isSessionActive = true
                                                 },
+                                                onNavigateToFriends = {
+                                                    currentTab = MainTab.FRIENDS
+                                                },
                                                 modifier = Modifier.fillMaxSize()
                                             )
                                         }
@@ -219,12 +304,38 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.fillMaxSize()
                                             )
                                         }
+                                        MainTab.FRIENDS -> {
+                                            FriendsScreen(
+                                                viewModel = friendsViewModel,
+                                                onBack = { currentTab = MainTab.REVISION },
+                                                onOpenFriendDetail = { friendId ->
+                                                    selectedFriendId = friendId
+                                                },
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        val dataString = intent?.dataString
+        if (!dataString.isNullOrBlank()) {
+            val token = JoinUrlParser.parseToken(dataString)
+            if (!token.isNullOrBlank()) {
+                pendingDeepLink.value = token
             }
         }
     }
@@ -274,6 +385,7 @@ fun UserProfileHeader(
 @Composable
 fun HomeScreen(
     onStartSession: () -> Unit,
+    onNavigateToFriends: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -344,6 +456,40 @@ fun HomeScreen(
                         fontSize = 11.sp,
                         color = Color(0xFFF8F7F2).copy(alpha = 0.75f)
                     )
+                }
+            }
+        }
+
+        // Companions quick banner
+        item {
+            Card(
+                onClick = onNavigateToFriends,
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "الرفقاء / Revision Companions",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color(0xFF2F4A3D)
+                        )
+                        Text(
+                            text = "Recite to friends or listen to what they have scheduled",
+                            fontSize = 12.sp,
+                            color = Color(0xFF7A6B56)
+                        )
+                    }
+                    Text("👥 →", fontSize = 16.sp, color = Color(0xFF2F4A3D))
                 }
             }
         }

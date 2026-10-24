@@ -8,11 +8,13 @@ import androidx.room.TypeConverters
 import com.sylergy.murajaah.database.converter.Converters
 import com.sylergy.murajaah.database.dao.AchievementDao
 import com.sylergy.murajaah.database.dao.CardDao
+import com.sylergy.murajaah.database.dao.FriendDao
 import com.sylergy.murajaah.database.dao.GradeOutboxDao
 import com.sylergy.murajaah.database.dao.MemorizedRangeDao
 import com.sylergy.murajaah.database.dao.RevisionPlanDao
 import com.sylergy.murajaah.database.entity.AchievementEntity
 import com.sylergy.murajaah.database.entity.CardEntity
+import com.sylergy.murajaah.database.entity.FriendEntity
 import com.sylergy.murajaah.database.entity.GradeOutboxEntity
 import com.sylergy.murajaah.database.entity.MemorizedRangeEntity
 import com.sylergy.murajaah.database.entity.RevisionPlanEntity
@@ -23,9 +25,10 @@ import com.sylergy.murajaah.database.entity.RevisionPlanEntity
         MemorizedRangeEntity::class,
         RevisionPlanEntity::class,
         GradeOutboxEntity::class,
-        AchievementEntity::class
+        AchievementEntity::class,
+        FriendEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -35,6 +38,7 @@ abstract class MurajaahDatabase : RoomDatabase() {
     abstract fun revisionPlanDao(): RevisionPlanDao
     abstract fun gradeOutboxDao(): GradeOutboxDao
     abstract fun achievementDao(): AchievementDao
+    abstract fun friendDao(): FriendDao
 
     companion object {
         private const val DATABASE_NAME = "murajaah.db"

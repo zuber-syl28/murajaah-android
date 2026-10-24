@@ -52,6 +52,7 @@ dependencies {
     implementation(project(":feature:onboarding"))
     implementation(project(":feature:progress"))
     implementation(project(":feature:achievements"))
+    implementation(project(":feature:friends"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
