@@ -379,6 +379,56 @@ fun SettingsScreen(
             }
         }
 
+        // Section 4.5: Glance AppWidget
+        val context = androidx.compose.ui.platform.LocalContext.current
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("📱", fontSize = 20.sp)
+                    Column {
+                        Text(
+                            text = "Home Screen Glance Widget · ويدجت الشاشة",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2F4A3D)
+                        )
+                        Text(
+                            text = "Track your Wird, active plan, and jump directly into revision from your home screen.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF7A6B56)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        val appWidgetManager = context.getSystemService(android.appwidget.AppWidgetManager::class.java)
+                        val provider = android.content.ComponentName(context.packageName, "com.sylergy.murajaah.widget.MurajaahGlanceReceiver")
+                        if (appWidgetManager.isRequestPinAppWidgetSupported) {
+                            appWidgetManager.requestPinAppWidget(provider, null, null)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFAF6EE)),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, Color(0xFF2E6F40), RoundedCornerShape(8.dp))
+                ) {
+                    Text(
+                        text = "📌 Pin Widget to Home Screen · إضافة للشاشة الرئيسية",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF2E6F40)
+                    )
+                }
+            }
+        }
+
         // Section 5: Memorized Ranges Management
         Card(
             shape = RoundedCornerShape(12.dp),

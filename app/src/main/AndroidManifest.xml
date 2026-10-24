@@ -48,6 +48,18 @@
         <receiver
             android:name="com.sylergy.murajaah.reminders.receiver.ReminderActionReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name="com.sylergy.murajaah.widget.MurajaahGlanceReceiver"
+            android:exported="true"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/murajaah_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

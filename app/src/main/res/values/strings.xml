@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Murajaah</string>
+    <string name="widget_name">Murajaah Revision Glance</string>
+    <string name="widget_description">Daily Wird cards, active revision plan, and quick launch</string>
 </resources>
