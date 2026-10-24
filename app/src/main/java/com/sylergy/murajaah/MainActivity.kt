@@ -55,6 +55,8 @@ import com.sylergy.murajaah.onboarding.OnboardingViewModel
 import com.sylergy.murajaah.onboarding.ui.OnboardingScreen
 import com.sylergy.murajaah.progress.ProgressViewModel
 import com.sylergy.murajaah.progress.ui.ProgressScreen
+import com.sylergy.murajaah.achievements.AchievementsViewModel
+import com.sylergy.murajaah.achievements.ui.AchievementsScreen
 import com.sylergy.murajaah.database.MurajaahDatabase
 import com.sylergy.murajaah.database.entity.CardEntity
 import com.sylergy.murajaah.database.entity.MemorizedRangeEntity
@@ -91,9 +93,11 @@ class MainActivity : ComponentActivity() {
                 val syncRepo = remember { SyncRepository(NetworkClient.create(), db) }
                 val sessionViewModel = remember { SessionViewModel(db, syncRepo) }
                 val progressViewModel = remember { ProgressViewModel(db) }
+                val achievementsViewModel = remember { AchievementsViewModel(db) }
 
                 val authState by authViewModel.authState.collectAsState()
                 var isSessionActive by remember { mutableStateOf(false) }
+                var isViewingAchievements by remember { mutableStateOf(false) }
                 var currentTab by remember { mutableStateOf(MainTab.REVISION) }
 
                 when (val state = authState) {
@@ -128,6 +132,12 @@ class MainActivity : ComponentActivity() {
                             SessionScreen(
                                 viewModel = sessionViewModel,
                                 onFinishSession = { isSessionActive = false },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else if (isViewingAchievements) {
+                            AchievementsScreen(
+                                viewModel = achievementsViewModel,
+                                onBack = { isViewingAchievements = false },
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
@@ -202,6 +212,9 @@ class MainActivity : ComponentActivity() {
                                                 onNavigateToCard = {
                                                     sessionViewModel.startSession()
                                                     isSessionActive = true
+                                                },
+                                                onNavigateToAchievements = {
+                                                    isViewingAchievements = true
                                                 },
                                                 modifier = Modifier.fillMaxSize()
                                             )

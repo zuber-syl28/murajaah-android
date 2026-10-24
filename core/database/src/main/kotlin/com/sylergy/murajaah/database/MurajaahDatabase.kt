@@ -6,10 +6,12 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.sylergy.murajaah.database.converter.Converters
+import com.sylergy.murajaah.database.dao.AchievementDao
 import com.sylergy.murajaah.database.dao.CardDao
 import com.sylergy.murajaah.database.dao.GradeOutboxDao
 import com.sylergy.murajaah.database.dao.MemorizedRangeDao
 import com.sylergy.murajaah.database.dao.RevisionPlanDao
+import com.sylergy.murajaah.database.entity.AchievementEntity
 import com.sylergy.murajaah.database.entity.CardEntity
 import com.sylergy.murajaah.database.entity.GradeOutboxEntity
 import com.sylergy.murajaah.database.entity.MemorizedRangeEntity
@@ -20,9 +22,10 @@ import com.sylergy.murajaah.database.entity.RevisionPlanEntity
         CardEntity::class,
         MemorizedRangeEntity::class,
         RevisionPlanEntity::class,
-        GradeOutboxEntity::class
+        GradeOutboxEntity::class,
+        AchievementEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -31,6 +34,7 @@ abstract class MurajaahDatabase : RoomDatabase() {
     abstract fun memorizedRangeDao(): MemorizedRangeDao
     abstract fun revisionPlanDao(): RevisionPlanDao
     abstract fun gradeOutboxDao(): GradeOutboxDao
+    abstract fun achievementDao(): AchievementDao
 
     companion object {
         private const val DATABASE_NAME = "murajaah.db"

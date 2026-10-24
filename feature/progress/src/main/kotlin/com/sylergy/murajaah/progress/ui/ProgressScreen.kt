@@ -53,6 +53,7 @@ import kotlin.math.roundToInt
 fun ProgressScreen(
     viewModel: ProgressViewModel,
     onNavigateToCard: (String) -> Unit = {},
+    onNavigateToAchievements: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -142,6 +143,55 @@ fun ProgressScreen(
         // Weekly Consistency Trend
         item {
             WeeklyTrendCard(trend = state.trend)
+        }
+
+        // Permanent Achievements Entry Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToAchievements() },
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFFEF3C7)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🏆", fontSize = 18.sp)
+                        }
+                        Column {
+                            Text(
+                                text = "Achievements · إنجازات",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2F4A3D)
+                            )
+                            Text(
+                                text = "Permanent non-lossy milestones",
+                                fontSize = 12.sp,
+                                color = Color(0xFF666666)
+                            )
+                        }
+                    }
+                    Text("View →", fontSize = 13.sp, color = Color(0xFF15803D), fontWeight = FontWeight.Bold)
+                }
+            }
         }
 
         // 30 Juz Grid Map
