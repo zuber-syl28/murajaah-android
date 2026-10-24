@@ -307,7 +307,6 @@ private fun CompanionRowCard(
     val due = FriendRules.dueFor(friend)
 
     Card(
-        onClick = onOpen,
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, BorderParchment),

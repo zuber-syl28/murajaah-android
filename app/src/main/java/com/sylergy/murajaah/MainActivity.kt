@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,6 +61,7 @@ import com.sylergy.murajaah.achievements.AchievementsViewModel
 import com.sylergy.murajaah.achievements.ui.AchievementsScreen
 import com.sylergy.murajaah.database.MurajaahDatabase
 import com.sylergy.murajaah.database.entity.CardEntity
+import com.sylergy.murajaah.database.entity.FriendEntity
 import com.sylergy.murajaah.database.entity.MemorizedRangeEntity
 import com.sylergy.murajaah.friends.FriendsViewModel
 import com.sylergy.murajaah.friends.repository.FriendsRepository
@@ -75,8 +77,11 @@ import com.sylergy.murajaah.network.sync.SyncWorker
 import com.sylergy.murajaah.quran.Narration
 import com.sylergy.murajaah.quran.NarrationData
 import com.sylergy.murajaah.quran.QuranData
+import com.sylergy.murajaah.reviewing.ReviewingViewModel
+import com.sylergy.murajaah.reviewing.ui.ReviewingScreen
 import com.sylergy.murajaah.scheduler.DateUtils
 import com.sylergy.murajaah.scheduler.MurajaahScheduler
+import com.sylergy.murajaah.scheduler.ReviewerRole
 import com.sylergy.murajaah.session.SessionViewModel
 import com.sylergy.murajaah.session.ui.SessionScreen
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -108,12 +113,14 @@ class MainActivity : ComponentActivity() {
                 val achievementsViewModel = remember { AchievementsViewModel(db) }
                 val friendsRepo = remember { FriendsRepository(db.friendDao(), NetworkClient.create()) }
                 val friendsViewModel = remember { FriendsViewModel(friendsRepo) }
+                val reviewingViewModel = remember { ReviewingViewModel() }
 
                 val authState by authViewModel.authState.collectAsState()
                 val deepLinkToken by pendingDeepLink.collectAsState()
                 var isSessionActive by remember { mutableStateOf(false) }
                 var isViewingAchievements by remember { mutableStateOf(false) }
                 var selectedFriendId by remember { mutableStateOf<String?>(null) }
+                var reviewingCompanion by remember { mutableStateOf<FriendEntity?>(null) }
                 var currentTab by remember { mutableStateOf(MainTab.REVISION) }
 
                 when (val state = authState) {
@@ -157,6 +164,12 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
+                        } else if (reviewingCompanion != null) {
+                            ReviewingScreen(
+                                viewModel = reviewingViewModel,
+                                onClose = { reviewingCompanion = null },
+                                modifier = Modifier.fillMaxSize()
+                            )
                         } else if (selectedFriendId != null) {
                             val friendFlow = remember(selectedFriendId) { friendsRepo.observeFriend(selectedFriendId!!) }
                             val friend by friendFlow.collectAsState(initial = null)
@@ -164,11 +177,15 @@ class MainActivity : ComponentActivity() {
                                 FriendDetailScreen(
                                     friend = friend!!,
                                     onBack = { selectedFriendId = null },
-                                    onListenToThem = {
-                                        // Open examiner mode or session
-                                        sessionViewModel.startSession()
-                                        isSessionActive = true
+                                    onListenToThem = { companion ->
+                                        reviewingViewModel.initialize(
+                                            companionId = companion.userId,
+                                            companionName = companion.name,
+                                            companionArabicName = null,
+                                            role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
+                                        )
                                         selectedFriendId = null
+                                        reviewingCompanion = companion
                                     },
                                     onReciteToThem = {
                                         sessionViewModel.startSession()
@@ -288,6 +305,15 @@ class MainActivity : ComponentActivity() {
                                                 onNavigateToFriends = {
                                                     currentTab = MainTab.FRIENDS
                                                 },
+                                                onListenToCompanion = { companion ->
+                                                    reviewingViewModel.initialize(
+                                                        companionId = companion.userId,
+                                                        companionName = companion.name,
+                                                        companionArabicName = null,
+                                                        role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
+                                                    )
+                                                    reviewingCompanion = companion
+                                                },
                                                 modifier = Modifier.fillMaxSize()
                                             )
                                         }
@@ -310,6 +336,15 @@ class MainActivity : ComponentActivity() {
                                                 onBack = { currentTab = MainTab.REVISION },
                                                 onOpenFriendDetail = { friendId ->
                                                     selectedFriendId = friendId
+                                                },
+                                                onListenToThem = { companion ->
+                                                    reviewingViewModel.initialize(
+                                                        companionId = companion.userId,
+                                                        companionName = companion.name,
+                                                        companionArabicName = null,
+                                                        role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
+                                                    )
+                                                    reviewingCompanion = companion
                                                 },
                                                 modifier = Modifier.fillMaxSize()
                                             )
@@ -386,6 +421,7 @@ fun UserProfileHeader(
 fun HomeScreen(
     onStartSession: () -> Unit,
     onNavigateToFriends: () -> Unit = {},
+    onListenToCompanion: (FriendEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -398,6 +434,8 @@ fun HomeScreen(
     val dueCount by db.cardDao().observeDueCount(today).collectAsState(initial = 0)
     val rangeCount by db.memorizedRangeDao().observeRangeCount().collectAsState(initial = 0)
     val pendingOutboxCount by db.gradeOutboxDao().observePendingCount().collectAsState(initial = 0)
+    val companions by db.friendDao().observeAllFriends().collectAsState(initial = emptyList())
+    val dueCompanions = companions.filter { it.youReviewStatus == "active" && it.youReviewDueToday > 0 }
     var slippedAyahs: Set<Int> by remember { mutableStateOf(emptySet()) }
 
     LazyColumn(
@@ -463,7 +501,6 @@ fun HomeScreen(
         // Companions quick banner
         item {
             Card(
-                onClick = onNavigateToFriends,
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -476,20 +513,48 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text(
-                            text = "الرفقاء / Revision Companions",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = Color(0xFF2F4A3D)
-                        )
-                        Text(
-                            text = "Recite to friends or listen to what they have scheduled",
-                            fontSize = 12.sp,
-                            color = Color(0xFF7A6B56)
-                        )
+                    if (dueCompanions.isNotEmpty()) {
+                        val firstComp = dueCompanions.first()
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onNavigateToFriends() }
+                        ) {
+                            Text(
+                                text = "🎧 استماع لـ ${firstComp.name}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF2F4A3D)
+                            )
+                            Text(
+                                text = "${firstComp.name} has ${firstComp.youReviewDueToday} cards due to hear",
+                                fontSize = 12.sp,
+                                color = Color(0xFF7A6B56)
+                            )
+                        }
+                        Button(
+                            onClick = { onListenToCompanion(firstComp) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2F4A3D)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Listen · أستمع", fontSize = 12.sp, color = Color.White)
+                        }
+                    } else {
+                        Column {
+                            Text(
+                                text = "الرفقاء / Revision Companions",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF2F4A3D)
+                            )
+                            Text(
+                                text = "Recite to friends or listen to what they have scheduled",
+                                fontSize = 12.sp,
+                                color = Color(0xFF7A6B56)
+                            )
+                        }
+                        Text("👥 →", fontSize = 16.sp, color = Color(0xFF2F4A3D))
                     }
-                    Text("👥 →", fontSize = 16.sp, color = Color(0xFF2F4A3D))
                 }
             }
         }
