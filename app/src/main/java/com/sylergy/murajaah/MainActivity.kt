@@ -21,11 +21,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,6 +43,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sylergy.murajaah.auth.AuthViewModel
+import com.sylergy.murajaah.auth.model.AuthState
+import com.sylergy.murajaah.auth.model.UserSession
+import com.sylergy.murajaah.auth.storage.AuthPreferences
+import com.sylergy.murajaah.auth.ui.AuthScreen
+import com.sylergy.murajaah.onboarding.OnboardingViewModel
+import com.sylergy.murajaah.onboarding.ui.OnboardingScreen
 import com.sylergy.murajaah.database.MurajaahDatabase
 import com.sylergy.murajaah.database.entity.CardEntity
 import com.sylergy.murajaah.database.entity.MemorizedRangeEntity
@@ -66,30 +75,67 @@ class MainActivity : ComponentActivity() {
             MurajaahTheme {
                 val context = LocalContext.current
                 val db = remember { MurajaahDatabase.getInstance(context) }
+                val authPreferences = remember { AuthPreferences(context) }
+                val authViewModel = remember { AuthViewModel(authPreferences) }
+                val onboardingViewModel = remember { OnboardingViewModel(db, authPreferences) }
                 val syncRepo = remember { SyncRepository(NetworkClient.create(), db) }
                 val sessionViewModel = remember { SessionViewModel(db, syncRepo) }
+
+                val authState by authViewModel.authState.collectAsState()
                 var isSessionActive by remember { mutableStateOf(false) }
 
-                if (isSessionActive) {
-                    SessionScreen(
-                        viewModel = sessionViewModel,
-                        onFinishSession = { isSessionActive = false },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Scaffold(
-                        modifier = Modifier.fillMaxSize(),
-                        containerColor = Color(0xFFF8F7F2) // Warm Cream Mushaf Parchment
-                    ) { innerPadding ->
-                        HomeScreen(
-                            onStartSession = {
-                                sessionViewModel.startSession()
-                                isSessionActive = true
-                            },
+                when (val state = authState) {
+                    AuthState.Loading -> {
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(innerPadding)
+                                .background(Color(0xFFF8F7F2)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = Color(0xFF2F4A3D))
+                        }
+                    }
+                    AuthState.Unauthenticated -> {
+                        AuthScreen(
+                            viewModel = authViewModel,
+                            onAuthSuccess = { /* reactive state handles transition */ },
+                            modifier = Modifier.fillMaxSize()
                         )
+                    }
+                    is AuthState.Guest, is AuthState.Authenticated -> {
+                        val session = if (state is AuthState.Guest) state.session else (state as AuthState.Authenticated).session
+                        if (!session.onboarded) {
+                            OnboardingScreen(
+                                viewModel = onboardingViewModel,
+                                onFinishOnboarding = {
+                                    authViewModel.markOnboarded()
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else if (isSessionActive) {
+                            SessionScreen(
+                                viewModel = sessionViewModel,
+                                onFinishSession = { isSessionActive = false },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Scaffold(
+                                modifier = Modifier.fillMaxSize(),
+                                containerColor = Color(0xFFF8F7F2) // Warm Cream Mushaf Parchment
+                            ) { innerPadding ->
+                                HomeScreen(
+                                    session = session,
+                                    onSignOut = { authViewModel.signOut() },
+                                    onStartSession = {
+                                        sessionViewModel.startSession()
+                                        isSessionActive = true
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(innerPadding)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -99,6 +145,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun HomeScreen(
+    session: UserSession,
+    onSignOut: () -> Unit,
     onStartSession: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -120,6 +168,42 @@ fun HomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // User Profile & Mode Header
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Salam, ${session.name}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF2F4A3D)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .background(if (session.isGuest) Color(0xFFE0F2FE) else Color(0xFFDCFCE7), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (session.isGuest) "Guest Mode" else "Cloud Sync",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (session.isGuest) Color(0xFF0369A1) else Color(0xFF15803D)
+                        )
+                    }
+                }
+                TextButton(onClick = onSignOut) {
+                    Text("Sign Out", fontSize = 12.sp, color = Color(0xFF888888))
+                }
+            }
+        }
+
         item {
             Spacer(modifier = Modifier.height(8.dp))
             Text(

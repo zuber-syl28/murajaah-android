@@ -48,6 +48,8 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:mushaf"))
     implementation(project(":feature:session"))
+    implementation(project(":feature:auth"))
+    implementation(project(":feature:onboarding"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
