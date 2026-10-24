@@ -79,6 +79,9 @@ import com.sylergy.murajaah.quran.NarrationData
 import com.sylergy.murajaah.quran.QuranData
 import com.sylergy.murajaah.reviewing.ReviewingViewModel
 import com.sylergy.murajaah.reviewing.ui.ReviewingScreen
+import com.sylergy.murajaah.voice.VoiceSessionViewModel
+import com.sylergy.murajaah.voice.model.VoiceStatus
+import com.sylergy.murajaah.voice.ui.VoiceBar
 import com.sylergy.murajaah.scheduler.DateUtils
 import com.sylergy.murajaah.scheduler.MurajaahScheduler
 import com.sylergy.murajaah.scheduler.ReviewerRole
@@ -114,8 +117,10 @@ class MainActivity : ComponentActivity() {
                 val friendsRepo = remember { FriendsRepository(db.friendDao(), NetworkClient.create()) }
                 val friendsViewModel = remember { FriendsViewModel(friendsRepo) }
                 val reviewingViewModel = remember { ReviewingViewModel() }
+                val voiceViewModel = remember { VoiceSessionViewModel() }
 
                 val authState by authViewModel.authState.collectAsState()
+                val voiceStatus by voiceViewModel.status.collectAsState()
                 val deepLinkToken by pendingDeepLink.collectAsState()
                 var isSessionActive by remember { mutableStateOf(false) }
                 var isViewingAchievements by remember { mutableStateOf(false) }
@@ -151,192 +156,43 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
-                        } else if (deepLinkToken != null) {
-                            JoinScreen(
-                                token = deepLinkToken!!,
-                                repository = friendsRepo,
-                                onSuccess = {
-                                    pendingDeepLink.value = null
-                                    currentTab = MainTab.FRIENDS
-                                },
-                                onBack = {
-                                    pendingDeepLink.value = null
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else if (reviewingCompanion != null) {
-                            ReviewingScreen(
-                                viewModel = reviewingViewModel,
-                                onClose = { reviewingCompanion = null },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else if (selectedFriendId != null) {
-                            val friendFlow = remember(selectedFriendId) { friendsRepo.observeFriend(selectedFriendId!!) }
-                            val friend by friendFlow.collectAsState(initial = null)
-                            if (friend != null) {
-                                FriendDetailScreen(
-                                    friend = friend!!,
-                                    onBack = { selectedFriendId = null },
-                                    onListenToThem = { companion ->
-                                        reviewingViewModel.initialize(
-                                            companionId = companion.userId,
-                                            companionName = companion.name,
-                                            companionArabicName = null,
-                                            role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
-                                        )
-                                        selectedFriendId = null
-                                        reviewingCompanion = companion
-                                    },
-                                    onReciteToThem = {
-                                        sessionViewModel.startSession()
-                                        isSessionActive = true
-                                        selectedFriendId = null
-                                    },
-                                    onAskMutual = { friendsViewModel.openInviteSheet() },
-                                    onApprove = { friendsViewModel.approveRequest(it) },
-                                    onDecline = { friendsViewModel.declineRequest(it) },
-                                    onUpdateRole = { f, r -> friendsViewModel.updateRole(f, r) },
-                                    onUpdateRemind = { f, rem -> friendsViewModel.updateRemind(f, rem) },
-                                    onStopReviewing = { friendsViewModel.stopReviewing(it) },
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color(0xFFFBF8F1)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(color = Color(0xFF2E6F40))
-                                }
-                            }
-                        } else if (isSessionActive) {
-                            SessionScreen(
-                                viewModel = sessionViewModel,
-                                onFinishSession = { isSessionActive = false },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else if (isViewingAchievements) {
-                            AchievementsScreen(
-                                viewModel = achievementsViewModel,
-                                onBack = { isViewingAchievements = false },
-                                modifier = Modifier.fillMaxSize()
-                            )
                         } else {
-                            Scaffold(
-                                modifier = Modifier.fillMaxSize(),
-                                containerColor = Color(0xFFF8F7F2), // Warm Cream Mushaf Parchment
-                                bottomBar = {
-                                    NavigationBar(
-                                        containerColor = Color.White,
-                                        tonalElevation = 3.dp
-                                    ) {
-                                        NavigationBarItem(
-                                            selected = currentTab == MainTab.REVISION,
-                                            onClick = { currentTab = MainTab.REVISION },
-                                            icon = { Text("📖", fontSize = 18.sp) },
-                                            label = {
-                                                Text(
-                                                    "Revision · وِرد",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = if (currentTab == MainTab.REVISION) FontWeight.Bold else FontWeight.Normal
-                                                )
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                VoiceBar(
+                                    status = voiceStatus,
+                                    onJoin = { callId -> voiceViewModel.joinCall(callId) },
+                                    onToggleMute = { voiceViewModel.toggleMute() },
+                                    onEnd = { voiceViewModel.endCall() },
+                                    onDismiss = { voiceViewModel.dismiss() },
+                                    onAcceptWaiting = { voiceViewModel.simulateFriendAnswers() }
+                                )
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (deepLinkToken != null) {
+                                        JoinScreen(
+                                            token = deepLinkToken!!,
+                                            repository = friendsRepo,
+                                            onSuccess = {
+                                                pendingDeepLink.value = null
+                                                currentTab = MainTab.FRIENDS
                                             },
-                                            colors = NavigationBarItemDefaults.colors(
-                                                selectedIconColor = Color(0xFF2F4A3D),
-                                                selectedTextColor = Color(0xFF2F4A3D),
-                                                indicatorColor = Color(0xFFE8F0EC)
-                                            )
-                                        )
-                                        NavigationBarItem(
-                                            selected = currentTab == MainTab.PROGRESS,
-                                            onClick = { currentTab = MainTab.PROGRESS },
-                                            icon = { Text("📊", fontSize = 18.sp) },
-                                            label = {
-                                                Text(
-                                                    "Progress · إتقان",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = if (currentTab == MainTab.PROGRESS) FontWeight.Bold else FontWeight.Normal
-                                                )
+                                            onBack = {
+                                                pendingDeepLink.value = null
                                             },
-                                            colors = NavigationBarItemDefaults.colors(
-                                                selectedIconColor = Color(0xFF2F4A3D),
-                                                selectedTextColor = Color(0xFF2F4A3D),
-                                                indicatorColor = Color(0xFFE8F0EC)
-                                            )
+                                            modifier = Modifier.fillMaxSize()
                                         )
-                                        NavigationBarItem(
-                                            selected = currentTab == MainTab.FRIENDS,
-                                            onClick = { currentTab = MainTab.FRIENDS },
-                                            icon = { Text("👥", fontSize = 18.sp) },
-                                            label = {
-                                                Text(
-                                                    "Friends · الرفقاء",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = if (currentTab == MainTab.FRIENDS) FontWeight.Bold else FontWeight.Normal
-                                                )
-                                            },
-                                            colors = NavigationBarItemDefaults.colors(
-                                                selectedIconColor = Color(0xFF2F4A3D),
-                                                selectedTextColor = Color(0xFF2F4A3D),
-                                                indicatorColor = Color(0xFFE8F0EC)
-                                            )
+                                    } else if (reviewingCompanion != null) {
+                                        ReviewingScreen(
+                                            viewModel = reviewingViewModel,
+                                            onClose = { reviewingCompanion = null },
+                                            modifier = Modifier.fillMaxSize()
                                         )
-                                    }
-                                }
-                            ) { innerPadding ->
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(innerPadding)
-                                ) {
-                                    UserProfileHeader(
-                                        session = session,
-                                        onSignOut = { authViewModel.signOut() }
-                                    )
-
-                                    when (currentTab) {
-                                        MainTab.REVISION -> {
-                                            HomeScreen(
-                                                onStartSession = {
-                                                    sessionViewModel.startSession()
-                                                    isSessionActive = true
-                                                },
-                                                onNavigateToFriends = {
-                                                    currentTab = MainTab.FRIENDS
-                                                },
-                                                onListenToCompanion = { companion ->
-                                                    reviewingViewModel.initialize(
-                                                        companionId = companion.userId,
-                                                        companionName = companion.name,
-                                                        companionArabicName = null,
-                                                        role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
-                                                    )
-                                                    reviewingCompanion = companion
-                                                },
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        }
-                                        MainTab.PROGRESS -> {
-                                            ProgressScreen(
-                                                viewModel = progressViewModel,
-                                                onNavigateToCard = {
-                                                    sessionViewModel.startSession()
-                                                    isSessionActive = true
-                                                },
-                                                onNavigateToAchievements = {
-                                                    isViewingAchievements = true
-                                                },
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        }
-                                        MainTab.FRIENDS -> {
-                                            FriendsScreen(
-                                                viewModel = friendsViewModel,
-                                                onBack = { currentTab = MainTab.REVISION },
-                                                onOpenFriendDetail = { friendId ->
-                                                    selectedFriendId = friendId
-                                                },
+                                    } else if (selectedFriendId != null) {
+                                        val friendFlow = remember(selectedFriendId) { friendsRepo.observeFriend(selectedFriendId!!) }
+                                        val friend by friendFlow.collectAsState(initial = null)
+                                        if (friend != null) {
+                                            FriendDetailScreen(
+                                                friend = friend!!,
+                                                onBack = { selectedFriendId = null },
                                                 onListenToThem = { companion ->
                                                     reviewingViewModel.initialize(
                                                         companionId = companion.userId,
@@ -344,10 +200,178 @@ class MainActivity : ComponentActivity() {
                                                         companionArabicName = null,
                                                         role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
                                                     )
+                                                    selectedFriendId = null
                                                     reviewingCompanion = companion
                                                 },
+                                                onReciteToThem = {
+                                                    selectedFriendId = null
+                                                    voiceViewModel.reciteTo(friend!!.userId, friend!!.name)
+                                                },
+                                                onAskMutual = { friendsViewModel.openInviteSheet() },
+                                                onApprove = { friendsViewModel.approveRequest(it) },
+                                                onDecline = { friendsViewModel.declineRequest(it) },
+                                                onUpdateRole = { f, r -> friendsViewModel.updateRole(f, r) },
+                                                onUpdateRemind = { f, rem -> friendsViewModel.updateRemind(f, rem) },
+                                                onStopReviewing = { friendsViewModel.stopReviewing(it) },
                                                 modifier = Modifier.fillMaxSize()
                                             )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(Color(0xFFFBF8F1)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                CircularProgressIndicator(color = Color(0xFF2E6F40))
+                                            }
+                                        }
+                                    } else if (isSessionActive) {
+                                        SessionScreen(
+                                            viewModel = sessionViewModel,
+                                            onFinishSession = { isSessionActive = false },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else if (isViewingAchievements) {
+                                        AchievementsScreen(
+                                            viewModel = achievementsViewModel,
+                                            onBack = { isViewingAchievements = false },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Scaffold(
+                                            modifier = Modifier.fillMaxSize(),
+                                            containerColor = Color(0xFFF8F7F2), // Warm Cream Mushaf Parchment
+                                            bottomBar = {
+                                                NavigationBar(
+                                                    containerColor = Color.White,
+                                                    tonalElevation = 3.dp
+                                                ) {
+                                                    NavigationBarItem(
+                                                        selected = currentTab == MainTab.REVISION,
+                                                        onClick = { currentTab = MainTab.REVISION },
+                                                        icon = { Text("📖", fontSize = 18.sp) },
+                                                        label = {
+                                                            Text(
+                                                                "Revision · وِرد",
+                                                                fontSize = 11.sp,
+                                                                fontWeight = if (currentTab == MainTab.REVISION) FontWeight.Bold else FontWeight.Normal
+                                                            )
+                                                        },
+                                                        colors = NavigationBarItemDefaults.colors(
+                                                            selectedIconColor = Color(0xFF2F4A3D),
+                                                            selectedTextColor = Color(0xFF2F4A3D),
+                                                            indicatorColor = Color(0xFFE8F0EC)
+                                                        )
+                                                    )
+                                                    NavigationBarItem(
+                                                        selected = currentTab == MainTab.PROGRESS,
+                                                        onClick = { currentTab = MainTab.PROGRESS },
+                                                        icon = { Text("📊", fontSize = 18.sp) },
+                                                        label = {
+                                                            Text(
+                                                                "Progress · إتقان",
+                                                                fontSize = 11.sp,
+                                                                fontWeight = if (currentTab == MainTab.PROGRESS) FontWeight.Bold else FontWeight.Normal
+                                                            )
+                                                        },
+                                                        colors = NavigationBarItemDefaults.colors(
+                                                            selectedIconColor = Color(0xFF2F4A3D),
+                                                            selectedTextColor = Color(0xFF2F4A3D),
+                                                            indicatorColor = Color(0xFFE8F0EC)
+                                                        )
+                                                    )
+                                                    NavigationBarItem(
+                                                        selected = currentTab == MainTab.FRIENDS,
+                                                        onClick = { currentTab = MainTab.FRIENDS },
+                                                        icon = { Text("👥", fontSize = 18.sp) },
+                                                        label = {
+                                                            Text(
+                                                                "Friends · الرفقاء",
+                                                                fontSize = 11.sp,
+                                                                fontWeight = if (currentTab == MainTab.FRIENDS) FontWeight.Bold else FontWeight.Normal
+                                                            )
+                                                        },
+                                                        colors = NavigationBarItemDefaults.colors(
+                                                            selectedIconColor = Color(0xFF2F4A3D),
+                                                            selectedTextColor = Color(0xFF2F4A3D),
+                                                            indicatorColor = Color(0xFFE8F0EC)
+                                                        )
+                                                    )
+                                                }
+                                            }
+                                        ) { innerPadding ->
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(innerPadding)
+                                            ) {
+                                                UserProfileHeader(
+                                                    session = session,
+                                                    onSignOut = { authViewModel.signOut() }
+                                                )
+
+                                                when (currentTab) {
+                                                    MainTab.REVISION -> {
+                                                        HomeScreen(
+                                                            onStartSession = {
+                                                                sessionViewModel.startSession()
+                                                                isSessionActive = true
+                                                            },
+                                                            onNavigateToFriends = {
+                                                                currentTab = MainTab.FRIENDS
+                                                            },
+                                                            onListenToCompanion = { companion ->
+                                                                reviewingViewModel.initialize(
+                                                                    companionId = companion.userId,
+                                                                    companionName = companion.name,
+                                                                    companionArabicName = null,
+                                                                    role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
+                                                                )
+                                                                reviewingCompanion = companion
+                                                            },
+                                                            onReciteToCompanion = { companion ->
+                                                                voiceViewModel.reciteTo(companion.userId, companion.name)
+                                                            },
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    }
+                                                    MainTab.PROGRESS -> {
+                                                        ProgressScreen(
+                                                            viewModel = progressViewModel,
+                                                            onNavigateToCard = {
+                                                                sessionViewModel.startSession()
+                                                                isSessionActive = true
+                                                            },
+                                                            onNavigateToAchievements = {
+                                                                isViewingAchievements = true
+                                                            },
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    }
+                                                    MainTab.FRIENDS -> {
+                                                        FriendsScreen(
+                                                            viewModel = friendsViewModel,
+                                                            onBack = { currentTab = MainTab.REVISION },
+                                                            onOpenFriendDetail = { friendId ->
+                                                                selectedFriendId = friendId
+                                                            },
+                                                            onListenToThem = { companion ->
+                                                                reviewingViewModel.initialize(
+                                                                    companionId = companion.userId,
+                                                                    companionName = companion.name,
+                                                                    companionArabicName = null,
+                                                                    role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
+                                                                )
+                                                                reviewingCompanion = companion
+                                                            },
+                                                            onReciteToThem = { companion ->
+                                                                voiceViewModel.reciteTo(companion.userId, companion.name)
+                                                            },
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -422,6 +446,7 @@ fun HomeScreen(
     onStartSession: () -> Unit,
     onNavigateToFriends: () -> Unit = {},
     onListenToCompanion: (FriendEntity) -> Unit = {},
+    onReciteToCompanion: (FriendEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -532,12 +557,20 @@ fun HomeScreen(
                                 color = Color(0xFF7A6B56)
                             )
                         }
-                        Button(
-                            onClick = { onListenToCompanion(firstComp) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2F4A3D)),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Listen · أستمع", fontSize = 12.sp, color = Color.White)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedButton(
+                                onClick = { onReciteToCompanion(firstComp) },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("🎙️ Recite · أسمِع", fontSize = 12.sp, color = Color(0xFF2F4A3D))
+                            }
+                            Button(
+                                onClick = { onListenToCompanion(firstComp) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2F4A3D)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Listen · أستمع", fontSize = 12.sp, color = Color.White)
+                            }
                         }
                     } else {
                         Column {
