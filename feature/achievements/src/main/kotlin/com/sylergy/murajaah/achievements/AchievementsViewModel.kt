@@ -13,10 +13,12 @@ import com.sylergy.murajaah.database.entity.AchievementEntity
 import com.sylergy.murajaah.database.entity.CardEntity
 import com.sylergy.murajaah.database.entity.GradeOutboxEntity
 import com.sylergy.murajaah.scheduler.DateUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 
 class AchievementsViewModel(
@@ -34,7 +36,7 @@ class AchievementsViewModel(
                 database.achievementDao().observeAllEarned()
             ) { cards: List<CardEntity>, grades: List<GradeOutboxEntity>, storedAchievements: List<AchievementEntity> ->
                 computeAndPersistAchievements(cards, grades, storedAchievements)
-            }.collect { state ->
+            }.flowOn(Dispatchers.Default).collect { state ->
                 _uiState.value = state
             }
         }

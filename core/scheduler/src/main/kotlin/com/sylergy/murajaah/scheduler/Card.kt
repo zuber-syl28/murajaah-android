@@ -15,12 +15,14 @@ data class Card(
     val toAyah: Int,
     val status: Rating,
     val stability: Double,
-    val difficulty: Double?,
-    val scheduledDays: Int?,
+    val difficulty: Double? = null,
+    val scheduledDays: Int? = null,
     val dueAt: String, // "YYYY-MM-DD"
-    val lastReviewedAt: String?, // "YYYY-MM-DD"
+    val lastReviewedAt: String? = null, // "YYYY-MM-DD"
     val reviewCount: Int,
-    val gradedBy: ReviewerRole? = null
+    val gradedBy: ReviewerRole? = null,
+    val page: Int? = null,
+    val juz: Int? = null
 ) {
     val ayahCount: Int get() = toAyah - fromAyah + 1
 }

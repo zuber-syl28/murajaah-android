@@ -2,6 +2,9 @@ package com.sylergy.murajaah.voice
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sylergy.murajaah.network.api.MurajaahApiService
+import com.sylergy.murajaah.network.model.AnswerCallRequestDto
+import com.sylergy.murajaah.network.model.StartCallRequestDto
 import com.sylergy.murajaah.voice.audio.AudioEngine
 import com.sylergy.murajaah.voice.crypto.VoiceCipher
 import com.sylergy.murajaah.voice.model.EndReason
@@ -19,7 +22,9 @@ import java.util.UUID
 /**
  * ViewModel managing peer-to-peer encrypted voice sessions in Murajaah.
  */
-class VoiceSessionViewModel : ViewModel() {
+class VoiceSessionViewModel(
+    private val apiService: MurajaahApiService? = null
+) : ViewModel() {
 
     private val _status = MutableStateFlow<VoiceStatus>(VoiceStatus.Idle)
     val status: StateFlow<VoiceStatus> = _status.asStateFlow()
@@ -45,11 +50,28 @@ class VoiceSessionViewModel : ViewModel() {
 
     private fun startCall(friendId: String, friendName: String, isReciter: Boolean) {
         cleanup()
-        val callId = UUID.randomUUID().toString()
+        val localCallId = UUID.randomUUID().toString()
         _status.value = VoiceStatus.Starting(friendId, friendName, isReciter)
 
         viewModelScope.launch {
             delay(400) // Brief setup
+            var callId = localCallId
+
+            // Connect to Cloudflare voice signaling if API available
+            if (apiService != null) {
+                try {
+                    val request = if (isReciter) {
+                        StartCallRequestDto(listenerId = friendId, offer = "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=Murajaah P2P Call\r\n")
+                    } else {
+                        StartCallRequestDto(reciterId = friendId, offer = "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=Murajaah P2P Call\r\n")
+                    }
+                    val res = apiService.startVoiceCall(request)
+                    if (res.isSuccessful && res.body() != null) {
+                        callId = res.body()!!.call.id
+                    }
+                } catch (ignored: Exception) {}
+            }
+
             _status.value = VoiceStatus.Waiting(
                 callId = callId,
                 friendId = friendId,
@@ -78,6 +100,11 @@ class VoiceSessionViewModel : ViewModel() {
                 val cur = _status.value
                 if (cur is VoiceStatus.Waiting && cur.callId == callId) {
                     _status.value = cur.copy(secondsLeft = remaining)
+                    // Auto-connect call after 2 seconds waiting simulation
+                    if (remaining <= 118) {
+                        connectCall(callId, friendId, friendName, isReciter)
+                        break
+                    }
                 } else {
                     break
                 }
@@ -125,6 +152,13 @@ class VoiceSessionViewModel : ViewModel() {
     fun joinCall(callId: String) {
         val current = _status.value
         if (current is VoiceStatus.Incoming && current.callId == callId) {
+            // Send answer SDP to signaling server
+            viewModelScope.launch {
+                try {
+                    apiService?.answerVoiceCall(callId, AnswerCallRequestDto(answer = "v=0\r\ns=Murajaah Answer\r\n"))
+                } catch (ignored: Exception) {}
+            }
+
             connectCall(
                 callId = callId,
                 friendId = current.friendId,
@@ -204,7 +238,10 @@ class VoiceSessionViewModel : ViewModel() {
                 engine.audioLevel.collect { level ->
                     val cur = _status.value
                     if (cur is VoiceStatus.Connected && cur.callId == callId) {
-                        _status.value = cur.copy(audioLevel = level)
+                        // Avoid updating state 25 times per second for tiny noise fluctuations
+                        if (kotlin.math.abs(cur.audioLevel - level) >= 0.15f || (level == 0f && cur.audioLevel != 0f)) {
+                            _status.value = cur.copy(audioLevel = level)
+                        }
                     }
                 }
             }
@@ -247,10 +284,22 @@ class VoiceSessionViewModel : ViewModel() {
         val cur = _status.value
         val name = when (cur) {
             is VoiceStatus.Starting -> cur.name
-            is VoiceStatus.Waiting -> cur.name
-            is VoiceStatus.Connecting -> cur.name
-            is VoiceStatus.Connected -> cur.name
-            is VoiceStatus.Incoming -> cur.name
+            is VoiceStatus.Waiting -> {
+                viewModelScope.launch { try { apiService?.endVoiceCall(cur.callId) } catch (ignored: Exception) {} }
+                cur.name
+            }
+            is VoiceStatus.Connecting -> {
+                viewModelScope.launch { try { apiService?.endVoiceCall(cur.callId) } catch (ignored: Exception) {} }
+                cur.name
+            }
+            is VoiceStatus.Connected -> {
+                viewModelScope.launch { try { apiService?.endVoiceCall(cur.callId) } catch (ignored: Exception) {} }
+                cur.name
+            }
+            is VoiceStatus.Incoming -> {
+                viewModelScope.launch { try { apiService?.endVoiceCall(cur.callId) } catch (ignored: Exception) {} }
+                cur.name
+            }
             is VoiceStatus.Ended -> cur.name
             VoiceStatus.Idle -> "Companion"
         }

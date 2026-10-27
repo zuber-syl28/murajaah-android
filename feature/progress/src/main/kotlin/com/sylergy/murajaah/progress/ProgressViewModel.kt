@@ -14,10 +14,12 @@ import com.sylergy.murajaah.progress.model.TathbeetItem
 import com.sylergy.murajaah.progress.model.TrendWeek
 import com.sylergy.murajaah.quran.QuranData
 import com.sylergy.murajaah.scheduler.DateUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
@@ -36,14 +38,14 @@ class ProgressViewModel(
                 database.revisionPlanDao().observeActivePlan()
             ) { cards: List<CardEntity>, grades: List<GradeOutboxEntity>, plan: RevisionPlanEntity? ->
                 computeDashboard(cards, grades, plan)
-            }.collect { state ->
+            }.flowOn(Dispatchers.Default).collect { state ->
                 _uiState.value = state
             }
         }
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Default) {
             val cards = database.cardDao().getAllCards()
             val grades = database.gradeOutboxDao().getAllGrades()
             val plan = database.revisionPlanDao().getActivePlan()
@@ -87,7 +89,15 @@ class ProgressViewModel(
         val surahItems = surahCardsMap.map { (surahNum, sCards) ->
             val meta = QuranData.surah(surahNum)
             val totalAyahsInSurah = meta?.ayahCount ?: sCards.maxOfOrNull { it.toAyah } ?: 1
-            val memorizedAyahs = sCards.flatMap { (it.fromAyah..it.toAyah).toList() }.toSet().size
+            val memorizedAyahs = run {
+                val ayahs = mutableSetOf<Int>()
+                for (c in sCards) {
+                    for (a in c.fromAyah..c.toAyah) {
+                        ayahs.add(a)
+                    }
+                }
+                ayahs.size
+            }
             val surahMastery = MasteryCalculator.overallMastery(sCards, today)
             val segments = MasteryCalculator.computeSurahSegments(sCards, totalAyahsInSurah)
 
@@ -132,16 +142,14 @@ class ProgressViewModel(
 
         // Weekly consistency and trend (last 8 weeks)
         val trendWeeks = mutableListOf<TrendWeek>()
+        val gradeDates = grades.map { it.recordedAt.take(10) }
         for (w in 7 downTo 0) {
             val weekStartDays = -(w * 7)
             val weekEndDays = -(w * 7 - 6)
             val wStart = DateUtils.addDays(today, weekStartDays)
             val wEnd = DateUtils.addDays(today, weekEndDays)
 
-            val count = grades.count {
-                val d = it.recordedAt.take(10)
-                d >= wStart && d <= wEnd
-            }
+            val count = gradeDates.count { d -> d in wStart..wEnd }
             val label = if (w == 0) "Now" else "-$w"
             trendWeeks.add(TrendWeek(weekOffset = -w, label = label, cardsReviewed = count, fraction = 0f))
         }

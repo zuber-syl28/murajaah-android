@@ -210,7 +210,7 @@ fun ProgressScreen(
             )
         }
 
-        items(state.surahs) { surahItem ->
+        items(state.surahs, key = { it.surahNumber }) { surahItem ->
             SurahProgressRow(item = surahItem)
         }
 

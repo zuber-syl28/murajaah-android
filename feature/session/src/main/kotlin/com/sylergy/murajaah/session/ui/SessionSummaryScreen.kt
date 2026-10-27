@@ -51,6 +51,22 @@ fun SessionSummaryScreen(
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
+        if (summary.isFreeSession) {
+            Box(
+                modifier = Modifier
+                    .background(Color(0xFFE8F5E9), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "تسميع حر · Free Tasmīʿ",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1B5E20)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         Text(
             text = "تقبّل الله",
             fontSize = 42.sp,
@@ -109,31 +125,61 @@ fun SessionSummaryScreen(
                     PillBadge(label = "Review", count = summary.reviewCount, color = Color(0xFFE65100), bg = Color(0xFFFFF3E0))
                     PillBadge(label = "Weak", count = summary.weakCount, color = Color(0xFFC62828), bg = Color(0xFFFFEBEE))
                 }
+
+                // If mending occurred, show Spot Repair results
+                if (summary.mendedCount > 0) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Spot Repair & Retest (Tathbeet)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF2F4A3D)
+                        )
+                        Text(
+                            text = "${summary.retestHeldCount} / ${summary.mendedCount} Held Firm",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Want 2 more? (Extend button)
-        OutlinedButton(
-            onClick = onExtendQueue,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(14.dp)
-        ) {
-            Text(
-                text = "Want 2 more? (+2 Cards)",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF2F4A3D)
-            )
+        // Want 2 more? (Extend button) - only for regular sessions
+        if (!summary.isFreeSession) {
+            OutlinedButton(
+                onClick = onExtendQueue,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(
+                    text = "Want 2 more? (+2 Cards)",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF2F4A3D)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
 
         // Primary Finish Button
         Button(
             onClick = onFinish,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2F4A3D)),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)

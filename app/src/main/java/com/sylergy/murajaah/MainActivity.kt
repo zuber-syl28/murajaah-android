@@ -37,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -81,6 +82,7 @@ import com.sylergy.murajaah.quran.Narration
 import com.sylergy.murajaah.quran.NarrationData
 import com.sylergy.murajaah.quran.QuranData
 import com.sylergy.murajaah.reviewing.ReviewingViewModel
+import com.sylergy.murajaah.reviewing.model.ExaminerPhase
 import com.sylergy.murajaah.reviewing.ui.ReviewingScreen
 import com.sylergy.murajaah.voice.VoiceSessionViewModel
 import com.sylergy.murajaah.voice.model.VoiceStatus
@@ -95,6 +97,7 @@ import com.sylergy.murajaah.scheduler.DateUtils
 import com.sylergy.murajaah.scheduler.MurajaahScheduler
 import com.sylergy.murajaah.scheduler.ReviewerRole
 import com.sylergy.murajaah.session.SessionViewModel
+import com.sylergy.murajaah.session.ui.FreeTestScreen
 import com.sylergy.murajaah.session.ui.SessionScreen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -119,21 +122,24 @@ class MainActivity : ComponentActivity() {
                 val authPreferences = remember { AuthPreferences(context) }
                 val authViewModel = remember { AuthViewModel(authPreferences) }
                 val onboardingViewModel = remember { OnboardingViewModel(db, authPreferences) }
-                val syncRepo = remember { SyncRepository(NetworkClient.create(), db) }
+                val apiClient = remember { NetworkClient.create() }
+                val syncRepo = remember { SyncRepository(apiClient, db) }
+                val homeViewModel = remember { HomeViewModel(db, syncRepo) }
                 val sessionViewModel = remember { SessionViewModel(db, syncRepo) }
                 val progressViewModel = remember { ProgressViewModel(db) }
                 val achievementsViewModel = remember { AchievementsViewModel(db) }
-                val friendsRepo = remember { FriendsRepository(db.friendDao(), NetworkClient.create()) }
+                val friendsRepo = remember { FriendsRepository(db.friendDao(), apiClient) }
                 val friendsViewModel = remember { FriendsViewModel(friendsRepo) }
                 val reviewingViewModel = remember { ReviewingViewModel() }
-                val voiceViewModel = remember { VoiceSessionViewModel() }
+                val voiceViewModel = remember { VoiceSessionViewModel(apiClient) }
                 val remindersViewModel = remember { RemindersViewModel(application) }
-                val settingsViewModel = remember { SettingsViewModel(db, authPreferences) }
+                val settingsViewModel = remember { SettingsViewModel(db, authPreferences, apiClient) }
 
                 val authState by authViewModel.authState.collectAsState()
                 val voiceStatus by voiceViewModel.status.collectAsState()
                 val deepLinkToken by pendingDeepLink.collectAsState()
                 var isSessionActive by remember { mutableStateOf(false) }
+                var isViewingFreeTest by remember { mutableStateOf(false) }
                 var isViewingAchievements by remember { mutableStateOf(false) }
                 var isViewingReminders by remember { mutableStateOf(false) }
                 var isViewingSettings by remember { mutableStateOf(false) }
@@ -142,6 +148,14 @@ class MainActivity : ComponentActivity() {
                 var selectedFriendId by remember { mutableStateOf<String?>(null) }
                 var reviewingCompanion by remember { mutableStateOf<FriendEntity?>(null) }
                 var currentTab by remember { mutableStateOf(MainTab.REVISION) }
+                val reviewingState by reviewingViewModel.state.collectAsState()
+
+                LaunchedEffect(reviewingCompanion, reviewingState.currentCard, reviewingState.phase) {
+                    val card = reviewingState.currentCard
+                    if (reviewingCompanion != null && card != null && reviewingState.phase == ExaminerPhase.LISTENING) {
+                        voiceViewModel.sharePassage(card.surahName, card.surahArabicName, card.fromAyah, card.toAyah)
+                    }
+                }
 
                 when (val state = authState) {
                     AuthState.Loading -> {
@@ -198,7 +212,13 @@ class MainActivity : ComponentActivity() {
                                     } else if (reviewingCompanion != null) {
                                         ReviewingScreen(
                                             viewModel = reviewingViewModel,
-                                            onClose = { reviewingCompanion = null },
+                                            onClose = {
+                                                reviewingCompanion = null
+                                                voiceViewModel.endCall()
+                                            },
+                                            onStartListening = {
+                                                voiceViewModel.simulateFriendAnswers()
+                                            },
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else if (selectedFriendId != null) {
@@ -215,6 +235,7 @@ class MainActivity : ComponentActivity() {
                                                         companionArabicName = null,
                                                         role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
                                                     )
+                                                    voiceViewModel.hearFrom(companion.userId, companion.name)
                                                     selectedFriendId = null
                                                     reviewingCompanion = companion
                                                 },
@@ -240,6 +261,17 @@ class MainActivity : ComponentActivity() {
                                                 CircularProgressIndicator(color = Color(0xFF2E6F40))
                                             }
                                         }
+                                    } else if (isViewingFreeTest) {
+                                        FreeTestScreen(
+                                            database = db,
+                                            onStartFreeSession = { card ->
+                                                isViewingFreeTest = false
+                                                sessionViewModel.startFreeSession(card)
+                                                isSessionActive = true
+                                            },
+                                            onBack = { isViewingFreeTest = false },
+                                            modifier = Modifier.fillMaxSize()
+                                        )
                                     } else if (isSessionActive) {
                                         SessionScreen(
                                             viewModel = sessionViewModel,
@@ -355,14 +387,18 @@ class MainActivity : ComponentActivity() {
                                                 when (currentTab) {
                                                     MainTab.REVISION -> {
                                                         HomeScreen(
+                                                            homeViewModel = homeViewModel,
                                                             settingsViewModel = settingsViewModel,
                                                             onOpenPlanEditor = { planId ->
                                                                 editingPlanId = planId
                                                                 isEditingPlan = true
                                                             },
                                                             onStartSession = {
-                                                                sessionViewModel.startSession()
+                                                                sessionViewModel.startSession(revisionStyle = session.revisionStyle)
                                                                 isSessionActive = true
+                                                            },
+                                                            onOpenFreeTest = {
+                                                                isViewingFreeTest = true
                                                             },
                                                             onNavigateToFriends = {
                                                                 currentTab = MainTab.FRIENDS
@@ -374,6 +410,7 @@ class MainActivity : ComponentActivity() {
                                                                     companionArabicName = null,
                                                                     role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
                                                                 )
+                                                                voiceViewModel.hearFrom(companion.userId, companion.name)
                                                                 reviewingCompanion = companion
                                                             },
                                                             onReciteToCompanion = { companion ->
@@ -409,6 +446,7 @@ class MainActivity : ComponentActivity() {
                                                                     companionArabicName = null,
                                                                     role = if (companion.youReviewRole == "teacher") ReviewerRole.Teacher else ReviewerRole.Peer
                                                                 )
+                                                                voiceViewModel.hearFrom(companion.userId, companion.name)
                                                                 reviewingCompanion = companion
                                                             },
                                                             onReciteToThem = { companion ->
@@ -507,34 +545,19 @@ fun UserProfileHeader(
 
 @Composable
 fun HomeScreen(
+    homeViewModel: HomeViewModel,
     settingsViewModel: SettingsViewModel,
     onOpenPlanEditor: (String?) -> Unit = {},
     onStartSession: () -> Unit,
+    onOpenFreeTest: () -> Unit = {},
     onNavigateToFriends: () -> Unit = {},
     onListenToCompanion: (FriendEntity) -> Unit = {},
     onReciteToCompanion: (FriendEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val db = MurajaahDatabase.getInstance(context)
-    val syncRepo = SyncRepository(NetworkClient.create(), db)
-
-    val today = DateUtils.today()
-    val cardCount by db.cardDao().observeCardCount().collectAsState(initial = 0)
-    val dueCards by db.cardDao().observeDueCards(today).collectAsState(initial = emptyList())
-    val activePlan by db.revisionPlanDao().observeActivePlan().collectAsState(initial = null)
-    val dueCount = remember(activePlan, dueCards) {
-        if (activePlan != null) {
-            dueCards.count { it.surah in activePlan!!.surahs }
-        } else {
-            dueCards.size
-        }
-    }
-    val rangeCount by db.memorizedRangeDao().observeRangeCount().collectAsState(initial = 0)
-    val pendingOutboxCount by db.gradeOutboxDao().observePendingCount().collectAsState(initial = 0)
-    val companions by db.friendDao().observeAllFriends().collectAsState(initial = emptyList())
-    val dueCompanions = companions.filter { it.youReviewStatus == "active" && it.youReviewDueToday > 0 }
+    val homeState by homeViewModel.uiState.collectAsState()
+    val passageAyahs = remember { MushafRepository.getPassageText(67, 1, 10) }
     var slippedAyahs: Set<Int> by remember { mutableStateOf(emptySet()) }
 
     LazyColumn(
@@ -598,9 +621,33 @@ fun HomeScreen(
                         color = Color(0xFFF8F7F2)
                     )
                     Text(
-                        text = if (activePlan != null) "${activePlan!!.name} · $dueCount Cards due" else "Focus Mode · $dueCount Cards due today",
+                        text = if (homeState.activePlan != null) "${homeState.activePlan!!.name} · ${homeState.dueCount} Cards due" else "Focus Mode · ${homeState.dueCount} Cards due today",
                         fontSize = 11.sp,
                         color = Color(0xFFF8F7F2).copy(alpha = 0.75f)
+                    )
+                }
+            }
+        }
+
+        // Secondary Free Tasmīʿ CTA
+        item {
+            OutlinedButton(
+                onClick = onOpenFreeTest,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("✨", fontSize = 16.sp)
+                    Text(
+                        text = "Free Tasmīʿ (Pick any Ayah) · تسميع حر",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF2F4A3D)
                     )
                 }
             }
@@ -621,8 +668,8 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (dueCompanions.isNotEmpty()) {
-                        val firstComp = dueCompanions.first()
+                    if (homeState.dueCompanions.isNotEmpty()) {
+                        val firstComp = homeState.dueCompanions.first()
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -681,7 +728,7 @@ fun HomeScreen(
                 surahNumber = 67,
                 fromAyah = 1,
                 toAyah = 10,
-                ayahs = MushafRepository.getPassageText(67, 1, 10),
+                ayahs = passageAyahs,
                 narration = Narration.HAFS,
                 slippedAyahs = slippedAyahs,
                 onAyahToggled = { ayah ->
@@ -700,12 +747,12 @@ fun HomeScreen(
         item {
             StatusCard(
                 title = "Offline Room Database",
-                badge = if (cardCount > 0) "Local Cache Active" else "Empty Cache"
+                badge = if (homeState.cardCount > 0) "Local Cache Active" else "Empty Cache"
             ) {
-                InfoRow("Stored Cards", "$cardCount cards in Room")
-                InfoRow("Due for Revision", "$dueCount cards")
-                InfoRow("Memorized Ranges", "$rangeCount active ranges")
-                InfoRow("Outbox Pending Grades", "$pendingOutboxCount unsynced")
+                InfoRow("Stored Cards", "${homeState.cardCount} cards in Room")
+                InfoRow("Due for Revision", "${homeState.dueCount} cards")
+                InfoRow("Memorized Ranges", "${homeState.rangeCount} active ranges")
+                InfoRow("Outbox Pending Grades", "${homeState.pendingOutboxCount} unsynced")
 
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(
@@ -714,66 +761,7 @@ fun HomeScreen(
                 ) {
                     OutlinedButton(
                         onClick = {
-                            scope.launch {
-                                val mulkRange = MemorizedRangeEntity(
-                                    id = "range-67",
-                                    surah = 67,
-                                    fromAyah = 1,
-                                    toAyah = 30,
-                                    surahName = "Al-Mulk",
-                                    surahArabicName = "الملك",
-                                    ayahsCount = 30,
-                                    cardsCount = 3
-                                )
-                                val cards = listOf(
-                                    CardEntity(
-                                        id = "card-mulk-1",
-                                        surah = 67,
-                                        fromAyah = 1,
-                                        toAyah = 10,
-                                        juz = 29,
-                                        page = 562,
-                                        status = "weak",
-                                        stability = 1.0,
-                                        difficulty = 6.4,
-                                        scheduledDays = 1,
-                                        dueAt = today,
-                                        reviewCount = 1,
-                                        firstAyahText = "تَبَارَكَ الَّذِي بِيَدِهِ الْمُلْكُ"
-                                    ),
-                                    CardEntity(
-                                        id = "card-mulk-2",
-                                        surah = 67,
-                                        fromAyah = 11,
-                                        toAyah = 20,
-                                        juz = 29,
-                                        page = 563,
-                                        status = "review",
-                                        stability = 4.0,
-                                        difficulty = 5.2,
-                                        scheduledDays = 4,
-                                        dueAt = today,
-                                        reviewCount = 2,
-                                        firstAyahText = "فَاعْتَرَفُوا بِذَنبِهِمْ"
-                                    ),
-                                    CardEntity(
-                                        id = "card-mulk-3",
-                                        surah = 67,
-                                        fromAyah = 21,
-                                        toAyah = 30,
-                                        juz = 29,
-                                        page = 564,
-                                        status = "strong",
-                                        stability = 14.0,
-                                        difficulty = 3.5,
-                                        scheduledDays = 14,
-                                        dueAt = DateUtils.addDays(today, 6),
-                                        reviewCount = 5,
-                                        firstAyahText = "أَمَّنْ هَذَا الَّذِي يَرْزُقُكُمْ"
-                                    )
-                                )
-                                db.memorizedRangeDao().insertAll(listOf(mulkRange))
-                                db.cardDao().insertAll(cards)
+                            homeViewModel.seedHifz {
                                 Toast.makeText(context, "Seeded Al-Mulk cards to Room", Toast.LENGTH_SHORT).show()
                             }
                         },
@@ -784,17 +772,7 @@ fun HomeScreen(
 
                     OutlinedButton(
                         onClick = {
-                            scope.launch {
-                                val clientId = syncRepo.recordOfflineGrade(
-                                    cardId = "card-mulk-1",
-                                    rating = "strong",
-                                    recordedAt = today,
-                                    recallSeconds = 25,
-                                    hintsCount = 0,
-                                    surah = 67,
-                                    fromAyah = 1,
-                                    toAyah = 10
-                                )
+                            homeViewModel.gradeOffline { clientId ->
                                 Toast.makeText(context, "Recorded grade offline: $clientId", Toast.LENGTH_SHORT).show()
                             }
                         },
@@ -810,7 +788,7 @@ fun HomeScreen(
         item {
             StatusCard(
                 title = "WorkManager Delta Sync",
-                badge = if (pendingOutboxCount > 0) "Needs Sync ($pendingOutboxCount)" else "In Sync"
+                badge = if (homeState.pendingOutboxCount > 0) "Needs Sync (${homeState.pendingOutboxCount})" else "In Sync"
             ) {
                 InfoRow("Endpoint", "https://murajaah.sylergy-ltd.workers.dev")
                 InfoRow("Sync Method", "Oldest-first replay (/grades/sync)")
@@ -820,8 +798,7 @@ fun HomeScreen(
                 Button(
                     onClick = {
                         SyncWorker.enqueue(context)
-                        scope.launch {
-                            val res = syncRepo.syncPendingGrades()
+                        homeViewModel.triggerDeltaSync { res ->
                             when (res) {
                                 is com.sylergy.murajaah.network.sync.SyncResult.Success -> {
                                     Toast.makeText(context, "Sync complete! Applied: ${res.applied}, Skipped: ${res.skipped}", Toast.LENGTH_LONG).show()

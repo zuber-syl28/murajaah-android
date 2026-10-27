@@ -1,17 +1,28 @@
 package com.sylergy.murajaah.network.api
 
 import com.sylergy.murajaah.network.model.AcceptInviteResponseDto
+import com.sylergy.murajaah.network.model.AnswerCallRequestDto
+import com.sylergy.murajaah.network.model.CallDetailResponseDto
+import com.sylergy.murajaah.network.model.CallResponseDto
 import com.sylergy.murajaah.network.model.CreateInviteResponseDto
+import com.sylergy.murajaah.network.model.CreatePlanRequestDto
 import com.sylergy.murajaah.network.model.FriendDetailResponseDto
 import com.sylergy.murajaah.network.model.FriendsResponseDto
 import com.sylergy.murajaah.network.model.GradeSyncRequestDto
 import com.sylergy.murajaah.network.model.GradeSyncResponseDto
+import com.sylergy.murajaah.network.model.IceServersResponseDto
 import com.sylergy.murajaah.network.model.InvitePreviewResponseDto
+import com.sylergy.murajaah.network.model.MendItemRequestDto
 import com.sylergy.murajaah.network.model.OfflineSnapshotDto
+import com.sylergy.murajaah.network.model.PlansResponseDto
+import com.sylergy.murajaah.network.model.SkipItemRequestDto
+import com.sylergy.murajaah.network.model.StartCallRequestDto
+import com.sylergy.murajaah.network.model.UpdatePlanRequestDto
 import com.sylergy.murajaah.network.model.UpdateRangesRequestDto
 import com.sylergy.murajaah.network.model.UpdateRangesResponseDto
 import com.sylergy.murajaah.network.model.UpdateRemindRequestDto
 import com.sylergy.murajaah.network.model.UpdateRoleRequestDto
+import com.sylergy.murajaah.network.model.WaitingCallsResponseDto
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
@@ -39,6 +50,86 @@ interface MurajaahApiService {
         @Path("subject") subject: String = "me",
         @Body request: UpdateRangesRequestDto
     ): Response<UpdateRangesResponseDto>
+
+    // Revision Plans endpoints
+    @GET("api/u/{subject}/plans")
+    suspend fun getPlans(
+        @Path("subject") subject: String = "me"
+    ): Response<PlansResponseDto>
+
+    @POST("api/u/{subject}/plans")
+    suspend fun createPlan(
+        @Path("subject") subject: String = "me",
+        @Body request: CreatePlanRequestDto
+    ): Response<PlansResponseDto>
+
+    @PATCH("api/u/{subject}/plans/{planId}")
+    suspend fun updatePlan(
+        @Path("subject") subject: String = "me",
+        @Path("planId") planId: String,
+        @Body request: UpdatePlanRequestDto
+    ): Response<PlansResponseDto>
+
+    @DELETE("api/u/{subject}/plans/{planId}")
+    suspend fun deletePlan(
+        @Path("subject") subject: String = "me",
+        @Path("planId") planId: String
+    ): Response<PlansResponseDto>
+
+    @POST("api/u/{subject}/plans/{planId}/activate")
+    suspend fun activatePlan(
+        @Path("subject") subject: String = "me",
+        @Path("planId") planId: String
+    ): Response<PlansResponseDto>
+
+    // Session Live sync endpoints
+    @POST("api/u/{subject}/sessions/{sessionId}/skip")
+    suspend fun skipSessionItem(
+        @Path("subject") subject: String = "me",
+        @Path("sessionId") sessionId: String,
+        @Body request: SkipItemRequestDto
+    ): Response<ResponseBody>
+
+    @POST("api/u/{subject}/sessions/{sessionId}/mend")
+    suspend fun mendSessionItem(
+        @Path("subject") subject: String = "me",
+        @Path("sessionId") sessionId: String,
+        @Body request: MendItemRequestDto
+    ): Response<ResponseBody>
+
+    @POST("api/u/{subject}/sessions/{sessionId}/extend")
+    suspend fun extendSession(
+        @Path("subject") subject: String = "me",
+        @Path("sessionId") sessionId: String
+    ): Response<ResponseBody>
+
+    // Voice Signaling & ICE endpoints
+    @GET("api/voice/ice")
+    suspend fun getIceServers(): Response<IceServersResponseDto>
+
+    @POST("api/voice")
+    suspend fun startVoiceCall(
+        @Body request: StartCallRequestDto
+    ): Response<CallResponseDto>
+
+    @GET("api/voice/waiting")
+    suspend fun getWaitingCalls(): Response<WaitingCallsResponseDto>
+
+    @GET("api/voice/{id}")
+    suspend fun getCallDetail(
+        @Path("id") id: String
+    ): Response<CallDetailResponseDto>
+
+    @POST("api/voice/{id}/answer")
+    suspend fun answerVoiceCall(
+        @Path("id") id: String,
+        @Body request: AnswerCallRequestDto
+    ): Response<CallResponseDto>
+
+    @POST("api/voice/{id}/end")
+    suspend fun endVoiceCall(
+        @Path("id") id: String
+    ): Response<CallResponseDto>
 
     // Friends & Circle endpoints
     @GET("api/friends")

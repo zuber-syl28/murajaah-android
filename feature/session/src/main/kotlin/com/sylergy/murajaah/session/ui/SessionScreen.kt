@@ -55,6 +55,22 @@ fun SessionScreen(
                 modifier = modifier
             )
         }
+        is SessionPhase.SpotRepair -> {
+            SpotRepairScreen(
+                repair = currentPhase,
+                onAdvanceRead = { viewModel.onAdvanceRepairRead() },
+                onSkip = { viewModel.onSkipRepair() },
+                modifier = modifier
+            )
+        }
+        is SessionPhase.Retest -> {
+            SessionRetestScreen(
+                retest = currentPhase,
+                onToggleText = { viewModel.onToggleRetestText() },
+                onResult = { result -> viewModel.onRecordRetestResult(result) },
+                modifier = modifier
+            )
+        }
         is SessionPhase.Summary -> {
             SessionSummaryScreen(
                 summary = currentPhase,

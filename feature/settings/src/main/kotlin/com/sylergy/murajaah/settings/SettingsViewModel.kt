@@ -8,6 +8,9 @@ import com.sylergy.murajaah.auth.storage.SessionStorage
 import com.sylergy.murajaah.database.MurajaahDatabase
 import com.sylergy.murajaah.database.entity.MemorizedRangeEntity
 import com.sylergy.murajaah.database.entity.RevisionPlanEntity
+import com.sylergy.murajaah.network.api.MurajaahApiService
+import com.sylergy.murajaah.network.model.CreatePlanRequestDto
+import com.sylergy.murajaah.network.model.UpdatePlanRequestDto
 import com.sylergy.murajaah.quran.AyahSpan
 import com.sylergy.murajaah.quran.Narration
 import com.sylergy.murajaah.quran.NarrationData
@@ -24,7 +27,8 @@ import java.util.UUID
 
 class SettingsViewModel(
     private val database: MurajaahDatabase,
-    private val sessionStorage: SessionStorage
+    private val sessionStorage: SessionStorage,
+    private val apiService: MurajaahApiService? = null
 ) : ViewModel() {
 
     val userSession: StateFlow<UserSession?> = sessionStorage.authState.map { state ->
@@ -34,6 +38,40 @@ class SettingsViewModel(
             else -> null
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    init {
+        syncCloudPlans()
+    }
+
+    private fun syncCloudPlans() {
+        viewModelScope.launch {
+            val session = userSession.value
+            if (session != null && !session.isGuest && apiService != null) {
+                try {
+                    val response = apiService.getPlans()
+                    if (response.isSuccessful) {
+                        val body = response.body()
+                        if (body != null) {
+                            val activeId = body.activeId
+                            for (p in body.plans) {
+                                database.revisionPlanDao().insertPlan(
+                                    RevisionPlanEntity(
+                                        id = p.id,
+                                        name = p.name,
+                                        surahs = p.surahs,
+                                        isActive = p.id == activeId
+                                    )
+                                )
+                            }
+                            if (activeId != null) {
+                                database.revisionPlanDao().switchActivePlan(activeId)
+                            }
+                        }
+                    }
+                } catch (ignored: Exception) {}
+            }
+        }
+    }
 
     val plans: StateFlow<List<RevisionPlanEntity>> = database.revisionPlanDao()
         .observeAllPlans()
@@ -68,6 +106,14 @@ class SettingsViewModel(
             } else {
                 database.revisionPlanDao().switchActivePlan(planId)
             }
+
+            // Sync with cloud server
+            val session = userSession.value
+            if (session != null && !session.isGuest && apiService != null) {
+                try {
+                    apiService.activatePlan("me", planId ?: "all")
+                } catch (ignored: Exception) {}
+            }
         }
     }
 
@@ -84,6 +130,18 @@ class SettingsViewModel(
             if (makeActive) {
                 database.revisionPlanDao().switchActivePlan(id)
             }
+
+            // Sync with cloud server
+            val session = userSession.value
+            if (session != null && !session.isGuest && apiService != null) {
+                try {
+                    if (planId != null) {
+                        apiService.updatePlan("me", id, UpdatePlanRequestDto(name = entity.name, surahs = surahs))
+                    } else {
+                        apiService.createPlan("me", CreatePlanRequestDto(id = id, name = entity.name, surahs = surahs))
+                    }
+                } catch (ignored: Exception) {}
+            }
         }
     }
 
@@ -93,6 +151,14 @@ class SettingsViewModel(
             database.revisionPlanDao().deletePlan(planId)
             if (wasActive) {
                 database.revisionPlanDao().clearActivePlan()
+            }
+
+            // Sync with cloud server
+            val session = userSession.value
+            if (session != null && !session.isGuest && apiService != null) {
+                try {
+                    apiService.deletePlan("me", planId)
+                } catch (ignored: Exception) {}
             }
         }
     }

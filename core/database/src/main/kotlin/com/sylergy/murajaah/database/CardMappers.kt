@@ -30,13 +30,15 @@ fun CardEntity.toDomain(): Card {
         dueAt = dueAt,
         lastReviewedAt = lastReviewedAt,
         reviewCount = reviewCount,
-        gradedBy = role
+        gradedBy = role,
+        page = page,
+        juz = juz
     )
 }
 
 fun Card.toEntity(
-    juz: Int? = null,
-    page: Int? = null,
+    juz: Int? = this.juz,
+    page: Int? = this.page,
     consensus: Double? = null,
     firstAyahText: String? = null
 ): CardEntity {

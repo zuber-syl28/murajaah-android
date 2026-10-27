@@ -13,6 +13,7 @@ import com.sylergy.murajaah.reviewing.model.ExaminerPhase
 fun ReviewingScreen(
     viewModel: ReviewingViewModel = viewModel(),
     onClose: () -> Unit,
+    onStartListening: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsState()
@@ -21,7 +22,10 @@ fun ReviewingScreen(
         ExaminerPhase.OVERVIEW -> {
             ExaminerOverviewScreen(
                 state = state,
-                onStartListening = { viewModel.startListening() },
+                onStartListening = {
+                    viewModel.startListening()
+                    onStartListening?.invoke()
+                },
                 onToggleInPerson = { viewModel.toggleInPerson(it) },
                 onBack = onClose,
                 modifier = modifier.fillMaxSize()

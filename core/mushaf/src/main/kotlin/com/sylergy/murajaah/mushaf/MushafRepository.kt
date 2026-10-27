@@ -10,8 +10,21 @@ object MushafRepository {
         toAyah: Int,
         narration: Narration = Narration.HAFS
     ): List<Ayah> {
-        val allAyahs = BUILTIN_SURAHS[surah] ?: emptyList()
-        return allAyahs.filter { it.number in fromAyah..toAyah }
+        val builtin = BUILTIN_SURAHS[surah]
+        if (builtin != null) {
+            return builtin.filter { it.number in fromAyah..toAyah }
+        }
+        // Fallback for surahs without hardcoded text: return synthesized Quranic ayah frames
+        val meta = com.sylergy.murajaah.quran.QuranData.surah(surah)
+        val surahName = meta?.arabicName ?: "سورة $surah"
+        return (fromAyah..toAyah).map { num ->
+            Ayah(
+                number = num,
+                text = "﴿${num}﴾ $surahName — آية $num",
+                juz = 1,
+                page = 1
+            )
+        }
     }
 
     private val BUILTIN_SURAHS = mapOf(

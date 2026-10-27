@@ -34,15 +34,36 @@ object NetworkClient {
         encodeDefaults = true
     }
 
+    private val sharedOkHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .addInterceptor(AuthInterceptor())
+            .build()
+    }
+
+    private val sharedRetrofit: Retrofit by lazy {
+        val contentType = "application/json".toMediaType()
+        Retrofit.Builder()
+            .baseUrl(DEFAULT_BASE_URL)
+            .client(sharedOkHttpClient)
+            .addConverterFactory(json.asConverterFactory(contentType))
+            .build()
+    }
+
+    private val sharedApiService: MurajaahApiService by lazy {
+        sharedRetrofit.create(MurajaahApiService::class.java)
+    }
+
     fun create(
         baseUrl: String = DEFAULT_BASE_URL,
         loggingEnabled: Boolean = false
     ): MurajaahApiService {
-        val clientBuilder = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .addInterceptor(AuthInterceptor())
+        if (baseUrl == DEFAULT_BASE_URL && !loggingEnabled) {
+            return sharedApiService
+        }
 
+        val clientBuilder = sharedOkHttpClient.newBuilder()
         if (loggingEnabled) {
             val logging = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY

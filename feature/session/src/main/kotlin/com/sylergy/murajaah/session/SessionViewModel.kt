@@ -10,18 +10,22 @@ import com.sylergy.murajaah.network.sync.SyncRepository
 import com.sylergy.murajaah.quran.QuranData
 import com.sylergy.murajaah.scheduler.Card
 import com.sylergy.murajaah.scheduler.DateUtils
+import com.sylergy.murajaah.scheduler.MendResult
+import com.sylergy.murajaah.scheduler.MendRules
 import com.sylergy.murajaah.scheduler.MurajaahScheduler
 import com.sylergy.murajaah.scheduler.ReviewerRole
 import com.sylergy.murajaah.session.model.RecitationAttempt
 import com.sylergy.murajaah.session.model.SessionCard
 import com.sylergy.murajaah.session.model.SessionPhase
 import com.sylergy.murajaah.session.model.SessionRules
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class SessionViewModel(
     private val database: MurajaahDatabase,
@@ -29,43 +33,64 @@ class SessionViewModel(
 ) : ViewModel() {
 
     private val queue = mutableListOf<SessionCard>()
+    private val retestQueue = mutableListOf<Pair<SessionCard, RecitationAttempt>>()
     private val completedHistory = mutableListOf<Pair<SessionCard, RecitationAttempt>>()
 
-    private val _phase = kotlinx.coroutines.flow.MutableStateFlow<SessionPhase?>(null)
+    private val _phase = MutableStateFlow<SessionPhase?>(null)
     val phase: kotlinx.coroutines.flow.StateFlow<SessionPhase?> = _phase.asStateFlow()
 
-    private val _elapsedSeconds = kotlinx.coroutines.flow.MutableStateFlow(0)
+    private val _elapsedSeconds = MutableStateFlow(0)
     val elapsedSeconds: kotlinx.coroutines.flow.StateFlow<Int> = _elapsedSeconds.asStateFlow()
+
+    var isFreeSession: Boolean = false
+        private set
 
     private var activeAttempt: RecitationAttempt? = null
     private var timerJob: Job? = null
 
-    fun startSession(initialCards: List<Card>? = null) {
+    fun startSession(
+        initialCards: List<Card>? = null,
+        revisionStyle: String = "ordered"
+    ) {
         viewModelScope.launch {
+            isFreeSession = false
             queue.clear()
+            retestQueue.clear()
             completedHistory.clear()
 
             val cardsToUse = if (!initialCards.isNullOrEmpty()) {
                 initialCards
             } else {
-                val activePlan = database.revisionPlanDao().getActivePlan()
-                val dueEntities = database.cardDao().getDueCards(DateUtils.today())
-                val filteredDue = if (activePlan != null) {
-                    dueEntities.filter { it.surah in activePlan.surahs }
-                } else {
-                    dueEntities
-                }
+                val allCards = database.cardDao().getAllCards().map { it.toDomain() }
 
-                if (filteredDue.isNotEmpty()) {
-                    filteredDue.map { it.toDomain() }
+                if (revisionStyle == "ordered" && allCards.isNotEmpty()) {
+                    // Sequential / Traditional Wird: Mushaf order with up to 2 weak inserts
+                    com.sylergy.murajaah.scheduler.OrderedScheduler.buildOrderedQueue(
+                        cards = allCards,
+                        on = DateUtils.today(),
+                        cursor = null,
+                        pages = 2,
+                        maxWeak = 2
+                    )
                 } else {
-                    val allCards = database.cardDao().getAllCards()
-                    val filteredAll = if (activePlan != null) {
-                        allCards.filter { it.surah in activePlan.surahs }
+                    val activePlan = database.revisionPlanDao().getActivePlan()
+                    val dueEntities = database.cardDao().getDueCards(DateUtils.today())
+                    val filteredDue = if (activePlan != null) {
+                        dueEntities.filter { it.surah in activePlan.surahs }
                     } else {
-                        allCards
+                        dueEntities
                     }
-                    filteredAll.take(3).map { it.toDomain() }
+
+                    if (filteredDue.isNotEmpty()) {
+                        filteredDue.map { it.toDomain() }
+                    } else {
+                        val filteredAll = if (activePlan != null) {
+                            allCards.filter { it.surah in activePlan.surahs }
+                        } else {
+                            allCards
+                        }
+                        filteredAll.take(3)
+                    }
                 }
             }
 
@@ -76,8 +101,8 @@ class SessionViewModel(
                         card = c,
                         surahName = meta?.name ?: "Surah ${c.surah}",
                         surahArabicName = meta?.arabicName ?: "",
-                        juz = 29,
-                        page = 562
+                        juz = 1,
+                        page = 1
                     )
                 )
             }
@@ -86,19 +111,76 @@ class SessionViewModel(
         }
     }
 
+    /**
+     * Starts a Free Tasmīʿ session for a single chosen card/passage.
+     * Retest is skipped at the end of Free Tasmīʿ sessions per engine specification.
+     */
+    fun startFreeSession(card: Card) {
+        viewModelScope.launch {
+            isFreeSession = true
+            queue.clear()
+            retestQueue.clear()
+            completedHistory.clear()
+
+            val meta = QuranData.surah(card.surah)
+            queue.add(
+                SessionCard(
+                    card = card,
+                    surahName = meta?.name ?: "Surah ${card.surah}",
+                    surahArabicName = meta?.arabicName ?: "",
+                    juz = 1,
+                    page = 1
+                )
+            )
+
+            advanceToNextCard()
+        }
+    }
+
     private fun advanceToNextCard() {
-        if (queue.isEmpty()) {
-            showSummary()
+        if (queue.isNotEmpty()) {
+            val nextCard = queue.removeAt(0)
+            val attempt = RecitationAttempt(cardId = nextCard.card.id)
+            activeAttempt = attempt
+
+            _elapsedSeconds.value = 0
+            startTimer()
+            _phase.value = SessionPhase.Prompt(nextCard, hintsUsed = 0)
             return
         }
 
-        val nextCard = queue.removeAt(0)
-        val attempt = RecitationAttempt(cardId = nextCard.card.id)
-        activeAttempt = attempt
+        // Main queue finished. Check if we need to run Retest before Summary.
+        if (!isFreeSession && completedHistory.size >= 2) {
+            if (retestQueue.isEmpty()) {
+                val neededRetest = completedHistory.filter { (_, att) ->
+                    att.selectedGrade != null &&
+                    att.selectedGrade != Rating.Strong &&
+                    att.mendResult == null
+                }
+                retestQueue.addAll(neededRetest)
+            }
 
-        _elapsedSeconds.value = 0
-        startTimer()
-        _phase.value = SessionPhase.Prompt(nextCard, hintsUsed = 0)
+            if (retestQueue.isNotEmpty()) {
+                advanceToNextRetest()
+                return
+            }
+        }
+
+        showSummary()
+    }
+
+    private fun advanceToNextRetest() {
+        if (retestQueue.isEmpty()) {
+            showSummary()
+            return
+        }
+        val (card, attempt) = retestQueue.removeAt(0)
+        _phase.value = SessionPhase.Retest(
+            card = card,
+            attempt = attempt,
+            isTextRevealed = false,
+            remainingInRetest = retestQueue.size + 1
+        )
     }
 
     private fun startTimer() {
@@ -151,7 +233,7 @@ class SessionViewModel(
         val attempt = currentPhase.attempt.copy(selectedGrade = rating)
         activeAttempt = attempt
 
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Default) {
             val today = DateUtils.today()
             val allCards = database.cardDao().getAllCards().map { it.toDomain() }
             val cycleDays = MurajaahScheduler.revisionCycleDays(allCards)
@@ -187,9 +269,67 @@ class SessionViewModel(
                 toAyah = updatedCard.toAyah
             )
 
-            completedHistory.add(sessionCard to attempt)
+            withContext(Dispatchers.Main) {
+                completedHistory.add(sessionCard to attempt)
+
+                // Spot Repair (Tathbeet) intervention if passage was Weak or Review
+                if (MendRules.shouldMend(rating)) {
+                    val weakStreak = if (rating == Rating.Weak) 1 else 0
+                    val totalReads = MendRules.fixReads(rating, weakStreak)
+                    val repairAyahs = MendRules.repairAyahs(
+                        fromAyah = sessionCard.card.fromAyah,
+                        toAyah = sessionCard.card.toAyah,
+                        slippedAyahs = attempt.slippedAyahs,
+                        stubborn = weakStreak >= MendRules.STUBBORN_STREAK
+                    )
+                    _phase.value = SessionPhase.SpotRepair(
+                        card = sessionCard,
+                        attempt = attempt,
+                        repairAyahs = repairAyahs,
+                        totalReadsNeeded = totalReads,
+                        currentRead = 1
+                    )
+                } else {
+                    advanceToNextCard()
+                }
+            }
+        }
+    }
+
+    /**
+     * Advances the repetition counter during Spot Repair.
+     */
+    fun onAdvanceRepairRead() {
+        val repair = _phase.value as? SessionPhase.SpotRepair ?: return
+        if (repair.currentRead < repair.totalReadsNeeded) {
+            _phase.value = repair.copy(currentRead = repair.currentRead + 1)
+        } else {
             advanceToNextCard()
         }
+    }
+
+    /**
+     * Skips remaining repetitions in Spot Repair (never a wall).
+     */
+    fun onSkipRepair() {
+        advanceToNextCard()
+    }
+
+    fun onToggleRetestText() {
+        val currentRetest = _phase.value as? SessionPhase.Retest ?: return
+        _phase.value = currentRetest.copy(isTextRevealed = !currentRetest.isTextRevealed)
+    }
+
+    fun onRecordRetestResult(result: MendResult) {
+        val currentRetest = _phase.value as? SessionPhase.Retest ?: return
+        // Update history item with mendResult
+        val index = completedHistory.indexOfFirst { it.first.card.id == currentRetest.card.card.id }
+        if (index != -1) {
+            val (card, attempt) = completedHistory[index]
+            completedHistory[index] = card to attempt.copy(mendResult = result)
+        }
+
+        advanceToNextRetest()
     }
 
     fun onSkipCard() {
@@ -214,7 +354,9 @@ class SessionViewModel(
                         SessionCard(
                             card = c,
                             surahName = meta?.name ?: "Surah ${c.surah}",
-                            surahArabicName = meta?.arabicName ?: ""
+                            surahArabicName = meta?.arabicName ?: "",
+                            juz = 1,
+                            page = 1
                         )
                     )
                 }
@@ -231,6 +373,9 @@ class SessionViewModel(
         val totalAyahs = completedHistory.sumOf { it.first.ayahsCount }
         val totalSeconds = completedHistory.sumOf { it.second.elapsedSeconds }
 
+        val mendedCount = completedHistory.count { it.second.mendResult != null }
+        val retestHeldCount = completedHistory.count { it.second.mendResult == MendResult.Held }
+
         _phase.value = SessionPhase.Summary(
             completedCount = completedHistory.size,
             totalAyahs = totalAyahs,
@@ -238,6 +383,9 @@ class SessionViewModel(
             strongCount = strongCount,
             reviewCount = reviewCount,
             weakCount = weakCount,
+            mendedCount = mendedCount,
+            retestHeldCount = retestHeldCount,
+            isFreeSession = isFreeSession,
             history = completedHistory.toList()
         )
     }

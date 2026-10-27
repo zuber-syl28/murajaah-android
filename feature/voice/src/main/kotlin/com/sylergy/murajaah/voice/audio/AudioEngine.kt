@@ -1,8 +1,8 @@
 package com.sylergy.murajaah.voice.audio
 
 import android.annotation.SuppressLint
+import android.media.AudioAttributes
 import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
@@ -48,20 +48,35 @@ class AudioEngine(
     var onEncryptedFrameReady: ((EncryptedVoiceFrame) -> Unit)? = null
 
     /**
-     * Initializes playback track.
+     * Initializes playback track with standard media attributes for loudspeaker output.
      */
     fun startPlayback() {
         try {
             val minBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelOutConfig, audioFormat)
-            audioTrack = AudioTrack(
-                AudioManager.STREAM_VOICE_CALL,
-                sampleRate,
-                channelOutConfig,
-                audioFormat,
-                max(minBufferSize, 2048),
-                AudioTrack.MODE_STREAM
-            )
-            audioTrack?.play()
+            val bufferSize = max(minBufferSize * 2, 8192)
+
+            val attributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+
+            val format = AudioFormat.Builder()
+                .setEncoding(audioFormat)
+                .setSampleRate(sampleRate)
+                .setChannelMask(channelOutConfig)
+                .build()
+
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(attributes)
+                .setAudioFormat(format)
+                .setBufferSizeInBytes(bufferSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
+
+            audioTrack = track
+            if (track.state == AudioTrack.STATE_INITIALIZED) {
+                track.play()
+            }
         } catch (e: Throwable) {
             // Virtual/headless environment handling
         }
@@ -136,10 +151,16 @@ class AudioEngine(
     fun receiveAndPlayFrame(frame: EncryptedVoiceFrame) {
         try {
             val rawPcm = cipher.decrypt(frame)
-            audioTrack?.let { track ->
-                if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
-                    track.write(rawPcm, 0, rawPcm.size)
+            var track = audioTrack
+            if (track == null || track.state != AudioTrack.STATE_INITIALIZED) {
+                startPlayback()
+                track = audioTrack
+            }
+            track?.let {
+                if (it.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                    it.play()
                 }
+                it.write(rawPcm, 0, rawPcm.size, AudioTrack.WRITE_BLOCKING)
             }
         } catch (e: Exception) {
             // Decryption failed or dropped frame
@@ -205,7 +226,7 @@ class AudioEngine(
     private fun simulateVoiceActivity(buffer: ShortArray) {
         // Natural pulsing waveform around 200Hz - 400Hz (human vocal fundamental)
         for (i in buffer.indices) {
-            val amplitude = 2000.0 * (0.5 + 0.5 * kotlin.math.sin(simPhase * 0.05))
+            val amplitude = 14000.0 * (0.5 + 0.5 * kotlin.math.sin(simPhase * 0.05))
             buffer[i] = (amplitude * kotlin.math.sin(simPhase)).toInt().toShort()
             simPhase += 0.15
         }
