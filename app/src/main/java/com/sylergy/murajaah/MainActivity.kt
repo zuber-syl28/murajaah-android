@@ -99,6 +99,8 @@ import com.sylergy.murajaah.scheduler.ReviewerRole
 import com.sylergy.murajaah.session.SessionViewModel
 import com.sylergy.murajaah.session.ui.FreeTestScreen
 import com.sylergy.murajaah.session.ui.SessionScreen
+import com.sylergy.murajaah.ui.MurajaahIcons
+import com.sylergy.murajaah.ui.MurajaahLogo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
@@ -321,7 +323,12 @@ class MainActivity : ComponentActivity() {
                                                     NavigationBarItem(
                                                         selected = currentTab == MainTab.REVISION,
                                                         onClick = { currentTab = MainTab.REVISION },
-                                                        icon = { Text("📖", fontSize = 18.sp) },
+                                                        icon = { 
+                                                            MurajaahIcons.Revision(
+                                                                size = 20.dp, 
+                                                                tint = if (currentTab == MainTab.REVISION) Color(0xFF2F4A3D) else Color(0xFF888888)
+                                                            ) 
+                                                        },
                                                         label = {
                                                             Text(
                                                                 "Revision · وِرد",
@@ -338,7 +345,12 @@ class MainActivity : ComponentActivity() {
                                                     NavigationBarItem(
                                                         selected = currentTab == MainTab.PROGRESS,
                                                         onClick = { currentTab = MainTab.PROGRESS },
-                                                        icon = { Text("📊", fontSize = 18.sp) },
+                                                        icon = { 
+                                                            MurajaahIcons.Progress(
+                                                                size = 20.dp, 
+                                                                tint = if (currentTab == MainTab.PROGRESS) Color(0xFF2F4A3D) else Color(0xFF888888)
+                                                            ) 
+                                                        },
                                                         label = {
                                                             Text(
                                                                 "Progress · إتقان",
@@ -355,7 +367,12 @@ class MainActivity : ComponentActivity() {
                                                     NavigationBarItem(
                                                         selected = currentTab == MainTab.FRIENDS,
                                                         onClick = { currentTab = MainTab.FRIENDS },
-                                                        icon = { Text("👥", fontSize = 18.sp) },
+                                                        icon = { 
+                                                            MurajaahIcons.Friends(
+                                                                size = 20.dp, 
+                                                                tint = if (currentTab == MainTab.FRIENDS) Color(0xFF2F4A3D) else Color(0xFF888888)
+                                                            ) 
+                                                        },
                                                         label = {
                                                             Text(
                                                                 "Friends · الرفقاء",
@@ -503,7 +520,7 @@ fun UserProfileHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            com.sylergy.murajaah.ui.MurajaahLogo(size = 28.dp)
+            MurajaahLogo(size = 28.dp)
             Text(
                 text = "Salam, ${session.name}",
                 fontSize = 13.sp,
@@ -528,13 +545,13 @@ fun UserProfileHeader(
                 onClick = onOpenReminders,
                 modifier = Modifier.size(36.dp)
             ) {
-                Text("🔔", fontSize = 16.sp)
+                MurajaahIcons.Bell(size = 18.dp, tint = Color(0xFF2F4A3D))
             }
             IconButton(
                 onClick = onOpenSettings,
                 modifier = Modifier.size(36.dp)
             ) {
-                Text("⚙️", fontSize = 16.sp)
+                MurajaahIcons.Settings(size = 18.dp, tint = Color(0xFF2F4A3D))
             }
             Spacer(modifier = Modifier.width(4.dp))
             TextButton(onClick = onSignOut) {
@@ -570,7 +587,7 @@ fun HomeScreen(
 
         item {
             Spacer(modifier = Modifier.height(8.dp))
-            com.sylergy.murajaah.ui.MurajaahLogo(size = 64.dp)
+            MurajaahLogo(size = 64.dp)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "مراجعة",
@@ -645,7 +662,7 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("✨", fontSize = 16.sp)
+                    MurajaahIcons.Revision(size = 16.dp, tint = Color(0xFF2F4A3D))
                     Text(
                         text = "Free Tasmīʿ (Pick any Ayah) · تسميع حر",
                         fontSize = 13.sp,
@@ -679,7 +696,7 @@ fun HomeScreen(
                                 .clickable { onNavigateToFriends() }
                         ) {
                             Text(
-                                text = "🎧 استماع لـ ${firstComp.name}",
+                                text = "استماع لـ ${firstComp.name}",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = Color(0xFF2F4A3D)
@@ -695,14 +712,20 @@ fun HomeScreen(
                                 onClick = { onReciteToCompanion(firstComp) },
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("🎙️ Recite · أسمِع", fontSize = 12.sp, color = Color(0xFF2F4A3D))
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    MurajaahIcons.Mic(size = 14.dp, tint = Color(0xFF2F4A3D))
+                                    Text("Recite · أسمِع", fontSize = 12.sp, color = Color(0xFF2F4A3D))
+                                }
                             }
                             Button(
                                 onClick = { onListenToCompanion(firstComp) },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2F4A3D)),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
-                                Text("Listen · أستمع", fontSize = 12.sp, color = Color.White)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    MurajaahIcons.Listen(size = 14.dp, tint = Color.White)
+                                    Text("Listen · أستمع", fontSize = 12.sp, color = Color.White)
+                                }
                             }
                         }
                     } else {
@@ -719,7 +742,7 @@ fun HomeScreen(
                                 color = Color(0xFF7A6B56)
                             )
                         }
-                        Text("👥 →", fontSize = 16.sp, color = Color(0xFF2F4A3D))
+                        MurajaahIcons.Friends(size = 20.dp, tint = Color(0xFF2F4A3D))
                     }
                 }
             }
