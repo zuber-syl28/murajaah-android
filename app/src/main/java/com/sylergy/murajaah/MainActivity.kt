@@ -503,6 +503,7 @@ fun UserProfileHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.sylergy.murajaah.ui.MurajaahLogo(size = 28.dp)
             Text(
                 text = "Salam, ${session.name}",
                 fontSize = 13.sp,
@@ -568,6 +569,8 @@ fun HomeScreen(
     ) {
 
         item {
+            Spacer(modifier = Modifier.height(8.dp))
+            com.sylergy.murajaah.ui.MurajaahLogo(size = 64.dp)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "مراجعة",
