@@ -115,6 +115,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MushafRepository.initialize(applicationContext)
         handleIntent(intent)
         enableEdgeToEdge()
         setContent {

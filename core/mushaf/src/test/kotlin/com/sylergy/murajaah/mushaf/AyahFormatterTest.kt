@@ -48,5 +48,16 @@ class AyahFormatterTest {
         assertEquals(10, mulkFirst10.size)
         assertEquals(1, mulkFirst10.first().number)
         assertEquals(10, mulkFirst10.last().number)
+
+        // Surah 78 (An-Naba' - Resolves BUG-01 & BUG-02)
+        val nabaFirst10 = MushafRepository.getPassageText(78, 1, 10, Narration.HAFS)
+        assertEquals(10, nabaFirst10.size)
+        assertEquals(1, nabaFirst10.first().number)
+        assertEquals("عَمَّ يَتَسَآءَلُونَ", nabaFirst10.first().text)
+
+        // Verify hint extraction on An-Naba' verse 1 (Resolves BUG-02)
+        val words = nabaFirst10.first().text.split(" ").filter { it.isNotBlank() }
+        val hint1 = words.take(3).joinToString(" ")
+        assertEquals("عَمَّ يَتَسَآءَلُونَ", hint1)
     }
 }

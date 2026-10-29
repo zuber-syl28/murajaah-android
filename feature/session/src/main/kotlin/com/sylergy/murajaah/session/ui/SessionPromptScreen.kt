@@ -120,24 +120,6 @@ fun SessionPromptScreen(
                 HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Opening ayah cue
-                if (firstAyah != null) {
-                    Text(
-                        text = "Opening Cue:",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF888888)
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = firstAyah.text.take(35) + "…",
-                        fontSize = 18.sp,
-                        color = Color(0xFF2F4A3D),
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
-                }
-
                 // Stopwatch Display
                 val minutes = elapsedSeconds / 60
                 val seconds = elapsedSeconds % 60
@@ -185,12 +167,15 @@ fun SessionPromptScreen(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = if (hintsUsed == 1) {
-                                firstAyah?.text?.split(" ")?.take(3)?.joinToString(" ") ?: ""
+                                val words = (firstAyah?.text?.trim() ?: "").split("\\s+".toRegex()).filter { it.isNotBlank() }
+                                words.take(3).joinToString(" ") + "…"
                             } else {
-                                firstAyah?.text?.take(firstAyah.text.length / 2) ?: ""
+                                val words = (firstAyah?.text?.trim() ?: "").split("\\s+".toRegex()).filter { it.isNotBlank() }
+                                words.take(maxOf(4, words.size / 2)).joinToString(" ") + "…"
                             },
-                            fontSize = 16.sp,
-                            color = Color(0xFF333333),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF2F4A3D),
                             textAlign = TextAlign.Center
                         )
                     }
