@@ -1,5 +1,6 @@
 package com.sylergy.murajaah.session.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -76,6 +77,15 @@ fun FreeTestScreen(
     var memorizedSurahs by remember { mutableStateOf<List<MemorizedSurahItem>>(emptyList()) }
     var selectedSurah by remember { mutableStateOf<MemorizedSurahItem?>(null) }
     var selectedAyah by remember { mutableStateOf<Int?>(null) }
+
+    BackHandler {
+        if (selectedSurah != null) {
+            selectedSurah = null
+            selectedAyah = null
+        } else {
+            onBack()
+        }
+    }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {

@@ -1,5 +1,6 @@
 package com.sylergy.murajaah.achievements.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,7 @@ fun AchievementsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    BackHandler(onBack = onBack)
     val state by viewModel.uiState.collectAsState()
 
     if (state.isLoading) {

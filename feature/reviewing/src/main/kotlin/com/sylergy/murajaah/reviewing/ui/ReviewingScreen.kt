@@ -1,5 +1,6 @@
 package com.sylergy.murajaah.reviewing.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -16,6 +17,7 @@ fun ReviewingScreen(
     onStartListening: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    BackHandler(onBack = onClose)
     val state by viewModel.state.collectAsState()
 
     when (state.phase) {

@@ -1,5 +1,6 @@
 package com.sylergy.murajaah.reminders.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -70,6 +71,7 @@ fun ReminderSettingsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    BackHandler(onBack = onBack)
     val plan by viewModel.plan.collectAsState()
     var newTimeInput by remember { mutableStateOf("13:30") }
     var inputError by remember { mutableStateOf<String?>(null) }

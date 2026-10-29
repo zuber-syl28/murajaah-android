@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -200,6 +201,7 @@ class MainActivity : ComponentActivity() {
                                 )
                                 Box(modifier = Modifier.weight(1f)) {
                                     if (deepLinkToken != null) {
+                                        BackHandler { pendingDeepLink.value = null }
                                         JoinScreen(
                                             token = deepLinkToken!!,
                                             repository = friendsRepo,
@@ -213,6 +215,10 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else if (reviewingCompanion != null) {
+                                        BackHandler {
+                                            reviewingCompanion = null
+                                            voiceViewModel.endCall()
+                                        }
                                         ReviewingScreen(
                                             viewModel = reviewingViewModel,
                                             onClose = {
@@ -225,6 +231,7 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else if (selectedFriendId != null) {
+                                        BackHandler { selectedFriendId = null }
                                         val friendFlow = remember(selectedFriendId) { friendsRepo.observeFriend(selectedFriendId!!) }
                                         val friend by friendFlow.collectAsState(initial = null)
                                         if (friend != null) {
@@ -265,6 +272,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     } else if (isViewingFreeTest) {
+                                        BackHandler { isViewingFreeTest = false }
                                         FreeTestScreen(
                                             database = db,
                                             onStartFreeSession = { card ->
@@ -276,24 +284,28 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else if (isSessionActive) {
+                                        BackHandler { isSessionActive = false }
                                         SessionScreen(
                                             viewModel = sessionViewModel,
                                             onFinishSession = { isSessionActive = false },
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else if (isViewingAchievements) {
+                                        BackHandler { isViewingAchievements = false }
                                         AchievementsScreen(
                                             viewModel = achievementsViewModel,
                                             onBack = { isViewingAchievements = false },
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else if (isViewingReminders) {
+                                        BackHandler { isViewingReminders = false }
                                         ReminderSettingsScreen(
                                             viewModel = remindersViewModel,
                                             onBack = { isViewingReminders = false },
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else if (isEditingPlan) {
+                                        BackHandler { isEditingPlan = false }
                                         PlanEditorScreen(
                                             viewModel = settingsViewModel,
                                             planId = editingPlanId,
@@ -301,6 +313,7 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else if (isViewingSettings) {
+                                        BackHandler { isViewingSettings = false }
                                         SettingsScreen(
                                             viewModel = settingsViewModel,
                                             onBack = { isViewingSettings = false },
@@ -313,6 +326,9 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     } else {
+                                        if (currentTab != MainTab.REVISION) {
+                                            BackHandler { currentTab = MainTab.REVISION }
+                                        }
                                         Scaffold(
                                             modifier = Modifier.fillMaxSize(),
                                             containerColor = Color(0xFFF8F7F2), // Warm Cream Mushaf Parchment

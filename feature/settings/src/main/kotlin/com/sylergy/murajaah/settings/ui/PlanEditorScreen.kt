@@ -1,5 +1,6 @@
 package com.sylergy.murajaah.settings.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -78,6 +79,14 @@ fun PlanEditorScreen(
     var userNamed by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    BackHandler {
+        if (confirmingDelete) {
+            confirmingDelete = false
+        } else {
+            onBack()
+        }
+    }
 
     LaunchedEffect(existingPlan) {
         if (existingPlan != null) {

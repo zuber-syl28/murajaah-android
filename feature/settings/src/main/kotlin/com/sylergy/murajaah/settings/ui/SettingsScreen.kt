@@ -1,5 +1,6 @@
 package com.sylergy.murajaah.settings.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -66,6 +67,14 @@ fun SettingsScreen(
 
     var showNarrationMenu by remember { mutableStateOf(false) }
     var confirmingDeleteAccount by remember { mutableStateOf(false) }
+
+    BackHandler {
+        if (confirmingDeleteAccount) {
+            confirmingDeleteAccount = false
+        } else {
+            onBack()
+        }
+    }
 
     val currentNarrationId = session?.narration ?: "hafs"
     val currentNarration = Narration.fromId(currentNarrationId)

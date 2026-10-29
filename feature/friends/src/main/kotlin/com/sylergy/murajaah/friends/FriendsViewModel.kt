@@ -1,5 +1,7 @@
 package com.sylergy.murajaah.friends
 
+import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -90,6 +92,33 @@ class FriendsViewModel(
                     _transientState.value = _transientState.value.copy(invite = inviteDto)
                 }
             }
+        }
+    }
+
+    fun shareInvite(context: Context) {
+        viewModelScope.launch {
+            var invite = _transientState.value.invite
+            if (invite == null) {
+                _transientState.value = _transientState.value.copy(isLoading = true)
+                val result = repository.createInvite()
+                invite = result.getOrNull()
+                _transientState.value = _transientState.value.copy(
+                    invite = invite,
+                    isLoading = false
+                )
+            }
+            val url = invite?.url ?: "https://murajaah.sylergy-ltd.workers.dev/join"
+            val sendIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                putExtra(
+                    Intent.EXTRA_TEXT,
+                    "Join me for mutual Quran revision on Murajaah:\n$url"
+                )
+                type = "text/plain"
+            }
+            val chooser = Intent.createChooser(sendIntent, "Share Murajaah Invite")
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
         }
     }
 

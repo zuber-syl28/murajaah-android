@@ -1,5 +1,6 @@
 package com.sylergy.murajaah.friends.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -62,6 +63,8 @@ fun JoinScreen(
     var preview by remember { mutableStateOf<InvitePreviewDto?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isAccepted by remember { mutableStateOf(false) }
+
+    BackHandler(onBack = onBack)
 
     LaunchedEffect(token) {
         isLoading = true

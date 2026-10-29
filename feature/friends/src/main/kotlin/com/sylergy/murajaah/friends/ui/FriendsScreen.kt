@@ -1,5 +1,6 @@
 package com.sylergy.murajaah.friends.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,6 +72,9 @@ fun FriendsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    BackHandler(onBack = onBack)
 
     LaunchedEffect(uiState.joinSuccess) {
         uiState.joinSuccess?.let { name ->
@@ -115,23 +120,31 @@ fun FriendsScreen(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(
-                        onClick = { viewModel.openInviteSheet() },
+                        onClick = { viewModel.shareInvite(context) },
                         colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1.2f)
                     ) {
-                        Text("دعوة رفيق / Invite", color = Color.White, fontSize = 13.sp)
+                        Text("دعوة رفيق / Share Link", color = Color.White, fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = { viewModel.openInviteSheet() },
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(0.9f)
+                    ) {
+                        Text("رمز QR / Show Code", color = DeepBrown, fontSize = 12.sp)
                     }
 
                     OutlinedButton(
                         onClick = { viewModel.openScanDialog() },
                         shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(0.9f)
                     ) {
-                        Text("مسح رمز / Scan QR", color = DeepBrown, fontSize = 13.sp)
+                        Text("مسح / Scan", color = DeepBrown, fontSize = 12.sp)
                     }
                 }
             }

@@ -1,5 +1,17 @@
 package com.sylergy.murajaah.friends.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -7,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,12 +46,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.DecodeHintType
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.PlanarYUVLuminanceSource
+import com.google.zxing.common.HybridBinarizer
 import com.sylergy.murajaah.network.model.InvitePreviewDto
+import java.util.concurrent.Executors
 
 private val ParchmentBg = Color(0xFFFBF8F1)
 private val DeepBrown = Color(0xFF2C2416)
@@ -59,8 +83,25 @@ fun ScanQrDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    BackHandler(onBack = onDismiss)
+
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var inputUrl by remember { mutableStateOf("") }
+    var hasScanned by remember { mutableStateOf(false) }
+
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasCameraPermission = isGranted
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -140,31 +181,117 @@ fun ScanQrDialog(
                     }
                 }
             } else {
-                // Scanner viewfinder frame representation
-                Box(
-                    modifier = Modifier
-                        .size(200.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White)
-                        .border(2.dp, ForestGreen, RoundedCornerShape(16.dp))
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                // Camera Viewfinder or Permission Request
+                if (hasCameraPermission) {
+                    Box(
+                        modifier = Modifier
+                            .size(240.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(2.dp, ForestGreen, RoundedCornerShape(16.dp))
+                            .background(Color.Black),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "📷",
-                            fontSize = 36.sp
+                        AndroidView(
+                            factory = { ctx ->
+                                val previewView = PreviewView(ctx)
+                                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                                cameraProviderFuture.addListener({
+                                    try {
+                                        val cameraProvider = cameraProviderFuture.get()
+                                        val previewUseCase = Preview.Builder().build().also {
+                                            it.setSurfaceProvider(previewView.surfaceProvider)
+                                        }
+
+                                        val reader = MultiFormatReader().apply {
+                                            setHints(
+                                                mapOf(
+                                                    DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
+                                                    DecodeHintType.CHARACTER_SET to "UTF-8"
+                                                )
+                                            )
+                                        }
+
+                                        val imageAnalysis = ImageAnalysis.Builder()
+                                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                            .build()
+
+                                        imageAnalysis.setAnalyzer(Executors.newSingleThreadExecutor()) { imageProxy ->
+                                            val mediaImage = imageProxy.image
+                                            if (mediaImage != null && !hasScanned) {
+                                                val buffer = mediaImage.planes[0].buffer
+                                                val bytes = ByteArray(buffer.remaining())
+                                                buffer.get(bytes)
+                                                val source = PlanarYUVLuminanceSource(
+                                                    bytes, imageProxy.width, imageProxy.height,
+                                                    0, 0, imageProxy.width, imageProxy.height, false
+                                                )
+                                                val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+                                                try {
+                                                    val result = reader.decodeWithState(binaryBitmap)
+                                                    if (result != null && result.text.isNotBlank()) {
+                                                        hasScanned = true
+                                                        Handler(Looper.getMainLooper()).post {
+                                                            onScan(result.text)
+                                                        }
+                                                    }
+                                                } catch (_: Exception) {
+                                                    // No QR code detected in this frame
+                                                } finally {
+                                                    reader.reset()
+                                                }
+                                            }
+                                            imageProxy.close()
+                                        }
+
+                                        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                                        cameraProvider.unbindAll()
+                                        cameraProvider.bindToLifecycle(
+                                            lifecycleOwner,
+                                            cameraSelector,
+                                            previewUseCase,
+                                            imageAnalysis
+                                        )
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }, ContextCompat.getMainExecutor(ctx))
+                                previewView
+                            },
+                            modifier = Modifier.fillMaxSize()
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Align companion's QR code in this frame",
-                            fontSize = 12.sp,
-                            color = MutedInk,
-                            textAlign = TextAlign.Center
-                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(240.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White)
+                            .border(2.dp, BorderParchment, RoundedCornerShape(16.dp))
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(text = "📷", fontSize = 36.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Camera permission needed to scan QR",
+                                fontSize = 12.sp,
+                                color = DeepBrown,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                                colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Enable Camera · تفعيل الكاميرا", color = Color.White, fontSize = 12.sp)
+                            }
+                        }
                     }
                 }
 
@@ -206,24 +333,31 @@ fun ScanQrDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Button(
-                    onClick = { onScan(inputUrl) },
-                    enabled = inputUrl.isNotBlank() && !isLoading,
-                    colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
-                    } else {
-                        Text("Verify & Review", color = Color.White)
+                    Button(
+                        onClick = { onScan(inputUrl.trim()) },
+                        enabled = inputUrl.isNotBlank() && !isLoading,
+                        colors = ButtonDefaults.buttonColors(containerColor = ForestGreen),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp))
+                        } else {
+                            Text("انضمام / Join", color = Color.White, fontSize = 13.sp)
+                        }
+                    }
+
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("إلغاء / Cancel", color = MutedInk, fontSize = 13.sp)
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            TextButton(onClick = onDismiss) {
-                Text("إغلاق / Close", color = MutedInk)
             }
         }
     }

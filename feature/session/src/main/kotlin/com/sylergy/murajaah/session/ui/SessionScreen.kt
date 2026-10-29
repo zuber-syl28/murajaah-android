@@ -1,5 +1,6 @@
 package com.sylergy.murajaah.session.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,8 @@ fun SessionScreen(
     onFinishSession: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    BackHandler(onBack = onFinishSession)
+
     val phase by viewModel.phase.collectAsState()
     val elapsedSeconds by viewModel.elapsedSeconds.collectAsState()
 
