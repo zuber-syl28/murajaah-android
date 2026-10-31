@@ -506,7 +506,7 @@ private fun GoalAndStyleStep(
                     Text("−", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2F4A3D))
                 }
                 Text(
-                    text = "$dailyPages Pages",
+                    text = if (dailyPages == 1) "1 Page" else "$dailyPages Pages",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF2F4A3D)

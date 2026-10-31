@@ -52,7 +52,7 @@ fun ExaminerBanner(
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "🎧 استماع لـ $companionName",
+                        text = "🎧 استماع لـ \u2066$companionName\u2069",
                         fontFamily = FontFamily.Serif,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
@@ -61,7 +61,7 @@ fun ExaminerBanner(
                     if (!companionArabicName.isNullOrBlank()) {
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "($companionArabicName)",
+                            text = "(\u2067$companionArabicName\u2069)",
                             fontSize = 13.sp,
                             color = MutedInk
                         )

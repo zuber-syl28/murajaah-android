@@ -211,7 +211,7 @@ fun SettingsScreen(
                     ) {
                         Column {
                             Text(
-                                text = "${currentNarrationMeta.arabicName} · ${currentNarrationMeta.englishName}",
+                                text = "${currentNarrationMeta.arabicName} · \u2066${currentNarrationMeta.englishName}\u2069",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF2F4A3D)
@@ -234,7 +234,7 @@ fun SettingsScreen(
                                 text = {
                                     Column {
                                         Text(
-                                            text = "${meta.arabicName} (${meta.englishName})",
+                                            text = "${meta.arabicName} (\u2066${meta.englishName}\u2069)",
                                             fontWeight = if (meta.narration == currentNarration) FontWeight.Bold else FontWeight.Normal,
                                             color = if (meta.narration == currentNarration) Color(0xFF2E6F40) else Color(0xFF2F4A3D)
                                         )

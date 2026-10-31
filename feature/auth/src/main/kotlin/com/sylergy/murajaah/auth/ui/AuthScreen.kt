@@ -102,7 +102,10 @@ fun AuthScreen(
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
                     .background(if (mode == "guest") Color.White else Color.Transparent)
-                    .clickable { mode = "guest" }
+                    .clickable {
+                        mode = "guest"
+                        viewModel.clearError()
+                    }
                     .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -118,7 +121,10 @@ fun AuthScreen(
                     .weight(1f)
                     .clip(RoundedCornerShape(10.dp))
                     .background(if (mode == "cloud") Color.White else Color.Transparent)
-                    .clickable { mode = "cloud" }
+                    .clickable {
+                        mode = "cloud"
+                        viewModel.clearError()
+                    }
                     .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {

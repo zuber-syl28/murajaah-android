@@ -58,56 +58,56 @@ object NarrationRegistry {
             narration = Narration.HAFS,
             arabicName = "حفص عن عاصم",
             englishName = "Ḥafṣ ʿan ʿĀṣim",
-            school = "Kūfah (الكوفة)",
+            school = "Kūfah (\u2067الكوفة\u2069)",
             totalAyahs = 6236
         ),
         NarrationMetadata(
             narration = Narration.QALOON,
             arabicName = "قالون عن نافع",
             englishName = "Qālūn ʿan Nāfiʿ",
-            school = "Madīnah (المدينة)",
+            school = "Madīnah (\u2067المدينة\u2069)",
             totalAyahs = 6214
         ),
         NarrationMetadata(
             narration = Narration.WARSH,
             arabicName = "ورش عن نافع",
             englishName = "Warsh ʿan Nāfiʿ",
-            school = "Madīnah (المدينة)",
+            school = "Madīnah (\u2067المدينة\u2069)",
             totalAyahs = 6214
         ),
         NarrationMetadata(
             narration = Narration.SHOUBA,
             arabicName = "شعبة عن عاصم",
             englishName = "Shuʿbah ʿan ʿĀṣim",
-            school = "Kūfah (الكوفة)",
+            school = "Kūfah (\u2067الكوفة\u2069)",
             totalAyahs = 6236
         ),
         NarrationMetadata(
             narration = Narration.DOORI,
             arabicName = "الدوري عن أبي عمرو",
             englishName = "Ad-Dūrī ʿan Abī ʿAmr",
-            school = "Baṣrah (البصرة)",
+            school = "Baṣrah (\u2067البصرة\u2069)",
             totalAyahs = 6217
         ),
         NarrationMetadata(
             narration = Narration.SOOSI,
             arabicName = "السوسي عن أبي عمرو",
             englishName = "As-Sūsī ʿan Abī ʿAmr",
-            school = "Baṣrah (البصرة)",
+            school = "Baṣrah (\u2067البصرة\u2069)",
             totalAyahs = 6217
         ),
         NarrationMetadata(
             narration = Narration.BAZZI,
             arabicName = "البزي عن ابن كثير",
             englishName = "Al-Bazzī ʿan Ibn Kathīr",
-            school = "Makkah (مكة)",
+            school = "Makkah (\u2067مكة\u2069)",
             totalAyahs = 6220
         ),
         NarrationMetadata(
             narration = Narration.QUMBUL,
             arabicName = "قنبل عن ابن كثير",
             englishName = "Qunbul ʿan Ibn Kathīr",
-            school = "Makkah (مكة)",
+            school = "Makkah (\u2067مكة\u2069)",
             totalAyahs = 6220
         )
     )

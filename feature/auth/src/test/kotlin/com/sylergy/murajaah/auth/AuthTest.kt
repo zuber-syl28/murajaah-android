@@ -94,4 +94,18 @@ class AuthTest {
         viewModel.signOut()
         assertEquals(AuthState.Unauthenticated, viewModel.authState.value)
     }
+
+    @Test
+    fun testValidationErrorAndClearError() = runTest(testDispatcher) {
+        val storage = InMemorySessionStorage()
+        val viewModel = AuthViewModel(storage)
+
+        viewModel.signInWithCloud("invalid-email", "User")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("Please enter a valid email address.", viewModel.errorMessage.value)
+
+        viewModel.clearError()
+        assertEquals(null, viewModel.errorMessage.value)
+    }
 }

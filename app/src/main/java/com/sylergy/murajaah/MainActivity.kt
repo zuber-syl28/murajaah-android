@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -591,6 +592,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isWideScreen = configuration.screenWidthDp >= 600
     val homeState by homeViewModel.uiState.collectAsState()
     val passageAyahs = remember { MushafRepository.getPassageText(67, 1, 10) }
     var slippedAyahs: Set<Int> by remember { mutableStateOf(emptySet()) }
@@ -603,29 +606,31 @@ fun HomeScreen(
     ) {
 
         item {
-            Spacer(modifier = Modifier.height(8.dp))
-            MurajaahLogo(size = 64.dp)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(if (isWideScreen) 4.dp else 8.dp))
+            MurajaahLogo(size = if (isWideScreen) 40.dp else 64.dp)
+            Spacer(modifier = Modifier.height(if (isWideScreen) 4.dp else 8.dp))
             Text(
                 text = "مراجعة",
-                fontSize = 44.sp,
+                fontSize = if (isWideScreen) 28.sp else 44.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF2F4A3D)
             )
-            Text(
-                text = "Murajaah",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF2F4A3D).copy(alpha = 0.85f)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Structured Qur'an revision with the people who help you retain it.",
-                fontSize = 13.sp,
-                textAlign = TextAlign.Center,
-                color = Color(0xFF555555),
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
+            if (!isWideScreen) {
+                Text(
+                    text = "Murajaah",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF2F4A3D).copy(alpha = 0.85f)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Structured Qur'an revision with the people who help you retain it.",
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    color = Color(0xFF555555),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
         }
 
         // Revision Plan Bar (PlanChips)

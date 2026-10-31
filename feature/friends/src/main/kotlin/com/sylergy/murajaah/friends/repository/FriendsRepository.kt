@@ -240,7 +240,7 @@ class FriendsRepository(
             val companions = listOf(
                 FriendEntity(
                     userId = "c_bilal",
-                    name = "Bilal Ibn Rabah (بلال)",
+                    name = "Bilal Ibn Rabah (\u2067بلال\u2069)",
                     reviewsYouPartnershipId = "p_bilal_1",
                     reviewsYouStatus = "active",
                     reviewsYouPermission = "assess",
